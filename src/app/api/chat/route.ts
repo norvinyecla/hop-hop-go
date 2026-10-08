@@ -8,6 +8,7 @@ import {
 } from "ai";
 import { instructions } from "@/lib/instructions";
 import { getModel } from "@/lib/llm";
+import { planTrip } from "@/lib/tools/plan-trip";
 import { resolveLocation } from "@/lib/tools/resolve-location";
 
 export async function POST(req: Request) {
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     model: getModel(),
     instructions,
     messages: await convertToModelMessages(messages),
-    tools: { resolveLocation },
+    tools: { resolveLocation, planTrip },
     stopWhen: isStepCount(5),
   });
 
