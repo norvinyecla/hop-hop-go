@@ -51,7 +51,7 @@ The weights can change based on what the user says in the conversation, e.g. "fe
 
 ## Tech stack
 - **Next.js (App Router), TypeScript**
-- **Vercel AI SDK**: `streamText` + tools + `stopWhen: stepCountIs(n)` on the server, `useChat` on the client. Tool results render as route cards.
+- **Vercel AI SDK**: `streamText` + tools + `stopWhen: isStepCount(n)` on the server, `useChat` on the client. Tool results render as route cards.
 - **Model**: provider and model are set by environment variables (see below). Default: Claude Sonnet 5.5 (`claude-sonnet-5-5`) via `@ai-sdk/anthropic`.
 - **Zod** for tool input schemas and parsing TfNSW responses
 - **Tailwind CSS**, mobile-first layout
