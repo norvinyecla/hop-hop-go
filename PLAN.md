@@ -7,7 +7,7 @@ An AI chat app for Sydney. Users ask how to get from A to B, and the AI picks an
 **In**
 - Mobile-first web app. No PWA or install step.
 - No logins, accounts or saved history.
-- Modes: train (including Sydney Metro), bus, light rail, ferry, and walking legs between them.
+- Modes: train (including Sydney Metro), light rail, and walking legs between them.
 - Sydney only, using Transport for NSW (TfNSW) Open Data.
 
 **Out (for now)**
@@ -44,7 +44,7 @@ Ranking is a deterministic score in code, not done by the LLM:
 The weights can change based on what the user says in the conversation, e.g. "fewest changes" or "least walking". The LLM explains the result and handles vague requests.
 
 ### Trip API usage
-- Restrict modes to train, metro, bus, light rail, ferry and walking. Exclude coach, school bus and on-demand.
+- Restrict modes to train, metro, light rail and walking. Exclude bus, ferry, coach, school bus and on-demand.
 - `depArrMacro=dep|arr` for "leave at" vs "arrive by"
 - `TfNSWTR=true` for real-time data, `coordOutputFormat=EPSG:4326` for map coordinates
 - Auth header: `Authorization: apikey <TFNSW_API_KEY>`
@@ -52,7 +52,7 @@ The weights can change based on what the user says in the conversation, e.g. "fe
 ## Tech stack
 - **Next.js (App Router), TypeScript**
 - **Vercel AI SDK**: `streamText` + tools + `stopWhen: isStepCount(n)` on the server, `useChat` on the client. Tool results render as route cards.
-- **Model**: provider and model are set by environment variables (see below). Default: Claude Sonnet 5.5 (`claude-sonnet-5-5`) via `@ai-sdk/anthropic`.
+- **Model**: provider and model are set by environment variables (see below). Default: Google Gemini 3.1 Flash Lite (preview) (`gemini-3.1-flash-lite-preview`) via `@ai-sdk/google`. Anthropic (`@ai-sdk/anthropic`) is also supported.
 - **Zod** for tool input schemas and parsing TfNSW responses
 - **Tailwind CSS**, mobile-first layout
 - **MapLibre GL** (phase 2)
@@ -61,12 +61,12 @@ The weights can change based on what the user says in the conversation, e.g. "fe
 ## Environment variables
 ```
 TFNSW_API_KEY=
-LLM_PROVIDER=anthropic          # anthropic | openai | google | ...
-LLM_MODEL=claude-sonnet-5-5
+LLM_PROVIDER=google             # google | anthropic
+LLM_MODEL=gemini-3.1-flash-lite-preview
 LLM_API_KEY=
 ```
 
-The app does not depend on a specific provider. A small `getModel()` helper reads these three variables, builds the matching AI SDK provider and passes `LLM_API_KEY` in directly, instead of relying on each provider's default variable name such as `ANTHROPIC_API_KEY`. Switching providers means changing the variables, not the code.
+The app does not depend on a specific provider. A small `getModel()` helper reads these three variables, builds the matching AI SDK provider and passes `LLM_API_KEY` in directly, instead of relying on each provider's default variable name such as `GOOGLE_GENERATIVE_AI_API_KEY`. Switching providers means changing the variables, not the code.
 
 ## Phases
 
