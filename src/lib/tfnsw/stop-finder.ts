@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-const STOP_FINDER_URL = "https://api.transport.nsw.gov.au/v1/tp/stop_finder";
+import { tfnswGet } from "./client";
 
 // Only the fields we use; Zod drops the rest.
 const stopFinderResponseSchema = z.object({
@@ -31,28 +30,13 @@ export type Location = {
 
 /** Looks up stops, places and addresses matching a free-text query, best match first. */
 export async function findLocations(query: string, limit = 5): Promise<Location[]> {
-  const apiKey = process.env.TFNSW_API_KEY;
-  if (!apiKey) {
-    throw new Error("TFNSW_API_KEY is not set");
-  }
-
-  const params = new URLSearchParams({
-    outputFormat: "rapidJSON",
-    coordOutputFormat: "EPSG:4326",
+  const data = await tfnswGet("stop_finder", {
     type_sf: "any",
     name_sf: query,
     TfNSWSF: "true",
   });
 
-  const res = await fetch(`${STOP_FINDER_URL}?${params}`, {
-    headers: { Authorization: `apikey ${apiKey}` },
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!res.ok) {
-    throw new Error(`TfNSW stop_finder failed with status ${res.status}`);
-  }
-
-  const { locations } = stopFinderResponseSchema.parse(await res.json());
+  const { locations } = stopFinderResponseSchema.parse(data);
 
   return locations
     .sort((a, b) => (b.matchQuality ?? 0) - (a.matchQuality ?? 0))
