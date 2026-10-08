@@ -8,6 +8,7 @@ import {
 } from "ai";
 import { instructions } from "@/lib/instructions";
 import { getModel } from "@/lib/llm";
+import { resolveLocation } from "@/lib/tools/resolve-location";
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
@@ -16,6 +17,7 @@ export async function POST(req: Request) {
     model: getModel(),
     instructions,
     messages: await convertToModelMessages(messages),
+    tools: { resolveLocation },
     stopWhen: isStepCount(5),
   });
 

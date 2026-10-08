@@ -1,4 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogle } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";
 
 /**
@@ -6,8 +7,8 @@ import type { LanguageModel } from "ai";
  * To support another provider, install its @ai-sdk package and add a case.
  */
 export function getModel(): LanguageModel {
-  const provider = process.env.LLM_PROVIDER ?? "anthropic";
-  const model = process.env.LLM_MODEL ?? "claude-sonnet-5-5";
+  const provider = process.env.LLM_PROVIDER ?? "google";
+  const model = process.env.LLM_MODEL ?? "gemini-3.1-flash-lite-preview";
   const apiKey = process.env.LLM_API_KEY;
 
   if (!apiKey) {
@@ -15,6 +16,8 @@ export function getModel(): LanguageModel {
   }
 
   switch (provider) {
+    case "google":
+      return createGoogle({ apiKey })(model);
     case "anthropic":
       return createAnthropic({ apiKey })(model);
     default:
