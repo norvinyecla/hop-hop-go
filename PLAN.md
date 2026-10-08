@@ -44,7 +44,7 @@ Ranking is a deterministic score in code, not done by the LLM:
 The weights can change based on what the user says in the conversation, e.g. "fewest changes" or "least walking". The LLM explains the result and handles vague requests.
 
 ### Trip API usage
-- Restrict modes to train, metro, bus, light rail, ferry and walking. Exclude coach, school bus and on-demand.
+- Restrict modes to train, metro, light rail and walking. Exclude bus, ferry, coach, school bus and on-demand.
 - `depArrMacro=dep|arr` for "leave at" vs "arrive by"
 - `TfNSWTR=true` for real-time data, `coordOutputFormat=EPSG:4326` for map coordinates
 - Auth header: `Authorization: apikey <TFNSW_API_KEY>`
