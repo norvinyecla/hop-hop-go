@@ -8,8 +8,7 @@ import {
 } from "ai";
 import { instructions } from "@/lib/instructions";
 import { getModel } from "@/lib/llm";
-import { planTrip } from "@/lib/tools/plan-trip";
-import { resolveLocation } from "@/lib/tools/resolve-location";
+import { tools } from "@/lib/tools";
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
@@ -18,7 +17,7 @@ export async function POST(req: Request) {
     model: getModel(),
     instructions,
     messages: await convertToModelMessages(messages),
-    tools: { resolveLocation, planTrip },
+    tools,
     stopWhen: isStepCount(5),
   });
 
