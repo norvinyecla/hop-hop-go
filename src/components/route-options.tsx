@@ -146,10 +146,15 @@ export function RouteOptions({ journeys }: { journeys: Journey[] }) {
   const track = useRef<HTMLOListElement>(null);
   const settle = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Mirrors `selected` synchronously, for the resize observer and drag handlers.
   const selectedRef = useRef(0);
-  useEffect(() => {
-    selectedRef.current = selected;
-  }, [selected]);
+  const drag = useRef<{ x: number; left: number; from: number; moved: boolean } | null>(null);
+  const justDragged = useRef(false);
+
+  function choose(i: number) {
+    selectedRef.current = i;
+    setSelected(i);
+  }
 
   useEffect(() => () => clearTimeout(settle.current), []);
 
@@ -167,13 +172,52 @@ export function RouteOptions({ journeys }: { journeys: Journey[] }) {
   function onScroll() {
     clearTimeout(settle.current);
     settle.current = setTimeout(() => {
-      if (track.current) setSelected(cardInView(track.current));
+      if (track.current && !drag.current) choose(cardInView(track.current));
     }, 100);
   }
 
   function select(i: number) {
-    setSelected(i);
+    choose(i);
     if (track.current) scrollToCard(track.current, i, "smooth");
+  }
+
+  // Touch, trackpads and wheels scroll the track natively; a mouse can't, so drag it by hand.
+  function onPointerDown(e: React.PointerEvent<HTMLOListElement>) {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    drag.current = { x: e.clientX, left: e.currentTarget.scrollLeft, from: selectedRef.current, moved: false };
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLOListElement>) {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    if (!d.moved) {
+      // A small wobble is still a click.
+      if (Math.abs(dx) < 5) return;
+      d.moved = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      // Snapping fights a hand-driven scroll; turn it off until the drag ends.
+      e.currentTarget.style.scrollSnapType = "none";
+      e.currentTarget.style.cursor = "grabbing";
+    }
+    e.currentTarget.scrollLeft = d.left - dx;
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLOListElement>) {
+    const d = drag.current;
+    drag.current = null;
+    if (!d?.moved) return;
+    const el = e.currentTarget;
+    el.style.scrollSnapType = "";
+    el.style.cursor = "";
+    justDragged.current = true;
+    // The trailing click (if any) fires before this, so a later real click isn't swallowed.
+    setTimeout(() => (justDragged.current = false));
+    // Land on the nearest card, but treat a short flick as a move to the next one.
+    const dx = e.clientX - d.x;
+    let target = cardInView(el);
+    if (target === d.from && Math.abs(dx) > 40) target += dx < 0 ? 1 : -1;
+    select(Math.max(0, Math.min(journeys.length - 1, target)));
   }
 
   const journey = journeys[selected];
@@ -185,6 +229,18 @@ export function RouteOptions({ journeys }: { journeys: Journey[] }) {
       <ol
         ref={track}
         onScroll={onScroll}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        // The click that ends a drag shouldn't also select the card under the pointer.
+        onClickCapture={(e) => {
+          if (justDragged.current) {
+            justDragged.current = false;
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
         aria-label="Journey options"
         className="flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
