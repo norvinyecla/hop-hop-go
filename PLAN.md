@@ -27,7 +27,7 @@ User message
 LLM (AI SDK streamText, multi-step tool calls)
   ├─ resolveLocation(query)                  → TfNSW /v1/tp/stop_finder
   ├─ planTrip(origin, dest, time, depArr)    → TfNSW /v1/tp/trip
-  └─ getServiceAlerts(lines?)                → TfNSW /v1/tp/add_info
+  └─ getServiceAlerts(lines?, dates?)        → TfNSW /v1/tp/add_info
   │
   ▼
 Streamed answer + route cards (+ map in phase 2)

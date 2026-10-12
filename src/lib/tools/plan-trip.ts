@@ -9,7 +9,8 @@ export const planTrip = tool({
   description:
     "Find journeys leaving now between two locations, using trains, Sydney Metro, light rail and walking. " +
     "Both IDs must come from resolveLocation. Returns up to 3 journeys ranked best first, " +
-    "with times in Sydney local time (HH:mm).",
+    "with times in Sydney local time (HH:mm). Legs may list alerts: trackwork or service changes on that line " +
+    "or at its stations while the leg runs.",
   inputSchema: z.object({
     originId: z.string().min(1).describe("The id of the starting location, from resolveLocation"),
     destinationId: z.string().min(1).describe("The id of the destination location, from resolveLocation"),
