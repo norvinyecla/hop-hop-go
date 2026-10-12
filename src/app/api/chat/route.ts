@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: getModel(),
-    instructions,
+    instructions: instructions(),
     // Pass tools so planTrip's toModelOutput also applies to results from earlier turns.
     messages: await convertToModelMessages(messages, { tools }),
     tools,
