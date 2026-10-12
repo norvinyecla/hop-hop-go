@@ -44,8 +44,8 @@ function journey(overrides: Partial<Journey> & { id: string }): Journey & { id: 
 const ids = (journeys: Journey[]) => journeys.map((j) => (j as Journey & { id: string }).id);
 
 describe("scoreJourney", () => {
-  it("is the duration when there are no penalties", () => {
-    expect(scoreJourney(journey({ id: "a", durationMin: 27 }))).toBe(27);
+  it("is the minutes until arrival when there are no penalties", () => {
+    expect(scoreJourney(journey({ id: "a", waitMin: 8, durationMin: 27 }))).toBe(35);
   });
 
   it("adds penalties for changes, walking, waiting and delays", () => {
@@ -102,6 +102,32 @@ describe("rankJourneys", () => {
       journey({ id: "on-time" }),
     ]);
     expect(ids(ranked)).toEqual(["on-time", "delayed"]);
+  });
+
+  it("counts waiting the same as travelling", () => {
+    const ranked = rankJourneys([
+      journey({ id: "leaves-later", waitMin: 10, durationMin: 30 }),
+      journey({ id: "leaves-now", durationMin: 38 }),
+    ]);
+    expect(ids(ranked)).toEqual(["leaves-now", "leaves-later"]);
+  });
+
+  // Live cases from Parramatta to Royal Randwick, where the old weights ranked a trip that
+  // arrived later first: they halved the cost of waiting and penalised delays already in the times.
+  it("prefers a running-late trip that still arrives sooner", () => {
+    const ranked = rankJourneys([
+      journey({ id: "arrives-17:13", waitMin: 19, durationMin: 41, changes: 1 }),
+      journey({ id: "arrives-17:10", waitMin: 15, durationMin: 42, changes: 1, delayMin: 17 }),
+    ]);
+    expect(ids(ranked)).toEqual(["arrives-17:10", "arrives-17:13"]);
+  });
+
+  it("prefers leaving soon and arriving sooner over waiting for a later train", () => {
+    const ranked = rankJourneys([
+      journey({ id: "arrives-17:13", waitMin: 19, durationMin: 41, changes: 1 }),
+      journey({ id: "arrives-17:00", waitMin: 2, durationMin: 45, changes: 1, delayMin: 15 }),
+    ]);
+    expect(ids(ranked)).toEqual(["arrives-17:00", "arrives-17:13"]);
   });
 
   it("puts a long wait behind an otherwise equal journey", () => {
