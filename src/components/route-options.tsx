@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { legColor } from "@/lib/lines";
 import { walkMeters } from "@/lib/rank";
 import { dayLabel, fromSydney, toSydney } from "@/lib/sydney-time";
+import type { LegAlert } from "@/lib/tfnsw/alerts";
 import type { Journey, Leg, TripTime } from "@/lib/tfnsw/trip";
 
 // MapLibre needs the browser (WebGL, window), so skip it during server rendering.
@@ -27,6 +28,37 @@ function walkLabel(meters: number): string {
 /** Drops the suburb: "Central Station, Sydney" → "Central Station". */
 function shortName(name: string): string {
   return name.split(",")[0];
+}
+
+/** Every alert on the journey, once each. */
+function journeyAlerts(journey: Journey): LegAlert[] {
+  const byId = new Map(journey.legs.flatMap((leg) => leg.alerts ?? []).map((alert) => [alert.id, alert]));
+  return [...byId.values()];
+}
+
+/** "Trackwork", "Service change" or "2 alerts". */
+function alertsLabel(alerts: LegAlert[]): string {
+  if (alerts.length > 1) return `${alerts.length} alerts`;
+  return alerts[0].kind === "trackwork" ? "Trackwork" : "Service change";
+}
+
+function LegAlerts({ alerts }: { alerts: LegAlert[] }) {
+  return (
+    <ul className="mt-1 space-y-1">
+      {alerts.map((alert) => (
+        <li key={alert.id} className="text-xs text-amber-700 dark:text-amber-300">
+          <span aria-hidden>⚠ </span>
+          {alert.url ? (
+            <a href={alert.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+              {alert.title}
+            </a>
+          ) : (
+            alert.title
+          )}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function LineBadge({ leg }: { leg: Leg }) {
@@ -58,6 +90,7 @@ function Summary({ journey, leavingNow }: { journey: Journey; leavingNow: boolea
   const walked = walkMeters(journey);
   const delay = journey.delayMin ?? 0;
   const spare = journey.spareMin;
+  const alerts = journeyAlerts(journey);
   const facts = [
     journey.changes === 0 ? "No changes" : `${journey.changes} ${journey.changes === 1 ? "change" : "changes"}`,
     walked > 0 ? `${walkLabel(walked)} walk` : null,
@@ -88,6 +121,9 @@ function Summary({ journey, leavingNow }: { journey: Journey; leavingNow: boolea
         {delay > 0 && <span className="text-amber-600 dark:text-amber-400"> · {delay} min late</span>}
         {spare !== undefined && spare < 0 && (
           <span className="text-amber-600 dark:text-amber-400"> · {-spare} min after your arrival time</span>
+        )}
+        {alerts.length > 0 && (
+          <span className="text-amber-600 dark:text-amber-400"> · ⚠ {alertsLabel(alerts)}</span>
         )}
       </p>
     </div>
@@ -127,6 +163,7 @@ function LegDetail({ leg }: { leg: Leg }) {
             <span className="text-amber-600 dark:text-amber-400"> · departs {leg.delayMin} min late</span>
           ) : null}
         </span>
+        {leg.alerts && <LegAlerts alerts={leg.alerts} />}
       </span>
     </li>
   );

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { simplifyPath, type LngLat } from "@/lib/geo";
 import { dayLabel, fromSydney, toSydney, type SydneyDateTime } from "@/lib/sydney-time";
+import { alertsForLeg, fetchAlerts, lineKey, toAlert, toLegAlerts, type LegAlert, type ServiceAlert } from "./alerts";
 import { tfnswGet } from "./client";
 
 // TfNSW product classes we ask the trip planner to leave out:
@@ -21,6 +22,8 @@ const stopSchema = z.object({
   /** [lat, lon] */
   coord: z.array(z.number()).length(2).optional(),
   properties: z.object({ platformName: z.string().optional() }).optional(),
+  /** The station a platform belongs to, by its global stop ID. */
+  parent: z.object({ id: z.string() }).optional(),
   departureTimePlanned: z.string().optional(),
   departureTimeEstimated: z.string().optional(),
   arrivalTimePlanned: z.string().optional(),
@@ -41,8 +44,12 @@ const tripResponseSchema = z.object({
               coords: z.array(z.array(z.number()).length(2)).optional(),
               origin: stopSchema,
               destination: stopSchema,
+              stopSequence: z.array(z.object({ parent: z.object({ id: z.string() }).optional() })).optional(),
+              /** Alerts TfNSW attached to this leg; parsed one by one with toAlert. */
+              infos: z.array(z.unknown()).optional(),
               transportation: z
                 .object({
+                  id: z.string().optional(),
                   disassembledName: z.string().optional(),
                   product: z.object({ class: z.number(), name: z.string().optional() }).optional(),
                   destination: z.object({ name: z.string() }).optional(),
@@ -75,6 +82,8 @@ export type Leg = {
   /** Minutes behind the timetable, from real-time data. */
   delayMin?: number;
   walkMeters?: number;
+  /** Trackwork and service changes on this leg's line or stations while it runs. */
+  alerts?: LegAlert[];
   /** The leg's path for the map, as [lng, lat] points. Kept out of the model's context. */
   path: LngLat[];
 };
@@ -134,6 +143,16 @@ function minutesBetween(fromIso: string, toIso: string): number {
   return Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 60_000);
 }
 
+async function fetchAlertsOrNone(): Promise<ServiceAlert[]> {
+  try {
+    return await fetchAlerts();
+  } catch (error) {
+    // Journeys are still worth showing without alerts.
+    console.error("fetchAlerts failed", error);
+    return [];
+  }
+}
+
 /**
  * Finds journeys between two TfNSW location IDs (from findLocations), leaving now or at/by
  * `when`, using trains, metro, light rail and walking only. Journeys keep TfNSW's order.
@@ -165,7 +184,8 @@ export async function findTrips(
     params[`exclMOT_${mode}`] = "1";
   }
 
-  const { journeys } = tripResponseSchema.parse(await tfnswGet("trip", params));
+  const [data, alerts] = await Promise.all([tfnswGet("trip", params), fetchAlertsOrNone()]);
+  const { journeys } = tripResponseSchema.parse(data);
 
   return journeys.map((journey) => {
     const legs = journey.legs.map((leg): Leg => {
@@ -184,6 +204,20 @@ export async function findTrips(
       const ends = [leg.origin.coord, leg.destination.coord].filter((c) => c !== undefined);
       const path = simplifyPath((leg.coords?.length ? leg.coords : ends).map(toLngLat));
 
+      const lineId = walking ? undefined : leg.transportation?.id;
+      const matched =
+        departActual && arriveActual
+          ? alertsForLeg(alerts, {
+              lineKey: lineId && lineKey(lineId),
+              boardAt: leg.origin.parent?.id,
+              alightAt: leg.destination.parent?.id,
+              stopIds: (leg.stopSequence ?? []).flatMap((stop) => (stop.parent ? [stop.parent.id] : [])),
+              from: departActual,
+              to: arriveActual,
+            })
+          : [];
+      const attached = (leg.infos ?? []).flatMap((info) => toAlert(info) ?? []);
+
       return {
         mode,
         line: walking ? undefined : leg.transportation?.disassembledName,
@@ -197,6 +231,7 @@ export async function findTrips(
         durationMin: Math.round((leg.duration ?? 0) / 60),
         delayMin: delayMin > 0 ? delayMin : undefined,
         walkMeters: walking ? leg.distance : undefined,
+        alerts: toLegAlerts([...attached, ...matched]),
         path,
       };
     });

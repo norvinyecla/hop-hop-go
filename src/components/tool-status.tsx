@@ -2,7 +2,7 @@ import type { ChatMessage } from "@/lib/tools";
 
 type ToolPart = Extract<
   ChatMessage["parts"][number],
-  { type: "tool-resolveLocation" | "tool-planTrip" }
+  { type: "tool-resolveLocation" | "tool-planTrip" | "tool-getServiceAlerts" }
 >;
 
 function describe(part: ToolPart): { label: string; done: boolean; failed?: boolean } {
@@ -24,6 +24,20 @@ function describe(part: ToolPart): { label: string; done: boolean; failed?: bool
       : { label: `No match for “${part.output.query}”`, done: true, failed: true };
   }
 
+  if (part.type === "tool-getServiceAlerts") {
+    if (part.state !== "output-available") {
+      return { label: "Checking trackwork and alerts…", done: false };
+    }
+    if ("error" in part.output && part.output.error) {
+      return { label: part.output.error, done: true, failed: true };
+    }
+    const total = part.output.total;
+    return {
+      label: total > 0 ? `Found ${total} ${total === 1 ? "alert" : "alerts"}` : "No alerts listed",
+      done: true,
+    };
+  }
+
   if (part.state !== "output-available") {
     return { label: "Finding trains…", done: false };
   }
@@ -37,7 +51,9 @@ function describe(part: ToolPart): { label: string; done: boolean; failed?: bool
 }
 
 export function isToolPart(part: ChatMessage["parts"][number]): part is ToolPart {
-  return part.type === "tool-resolveLocation" || part.type === "tool-planTrip";
+  return (
+    part.type === "tool-resolveLocation" || part.type === "tool-planTrip" || part.type === "tool-getServiceAlerts"
+  );
 }
 
 export function ToolStatus({ part }: { part: ToolPart }) {
