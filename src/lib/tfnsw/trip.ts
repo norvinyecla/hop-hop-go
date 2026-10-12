@@ -85,6 +85,11 @@ export type Journey = {
   durationMin: number;
   /** Minutes from the request until the journey starts. */
   waitMin: number;
+  /**
+   * Minutes behind the timetable at the destination, from real-time data. A late first
+   * service often just shortens the wait for the next, so this is not the sum of leg delays.
+   */
+  delayMin?: number;
   changes: number;
   legs: Leg[];
 };
@@ -186,12 +191,15 @@ export async function findTrips(
     const last = journey.legs[journey.legs.length - 1].destination;
     const start = first.departureTimeEstimated ?? first.departureTimePlanned;
     const end = last.arrivalTimeEstimated ?? last.arrivalTimePlanned;
+    const delayMin =
+      last.arrivalTimePlanned && end ? minutesBetween(last.arrivalTimePlanned, end) : 0;
 
     return {
       departs: legs[0].departs,
       arrives: legs[legs.length - 1].arrives,
       durationMin: start && end ? minutesBetween(start, end) : 0,
       waitMin: start ? Math.max(0, minutesBetween(requestedAt, start)) : 0,
+      delayMin: delayMin > 0 ? delayMin : undefined,
       changes: journey.interchanges ?? 0,
       legs,
     };

@@ -23,10 +23,6 @@ function walkLabel(meters: number): string {
   return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
 }
 
-function delayOf(journey: Journey): number {
-  return journey.legs.reduce((total, leg) => total + (leg.delayMin ?? 0), 0);
-}
-
 /** Drops the suburb: "Central Station, Sydney" → "Central Station". */
 function shortName(name: string): string {
   return name.split(",")[0];
@@ -52,7 +48,7 @@ function LineBadge({ leg }: { leg: Leg }) {
 
 function Summary({ journey }: { journey: Journey }) {
   const walked = walkMeters(journey);
-  const delay = delayOf(journey);
+  const delay = journey.delayMin ?? 0;
   const facts = [
     journey.changes === 0 ? "No changes" : `${journey.changes} ${journey.changes === 1 ? "change" : "changes"}`,
     walked > 0 ? `${walkLabel(walked)} walk` : null,
@@ -112,7 +108,9 @@ function LegDetail({ leg }: { leg: Leg }) {
         <span className="opacity-70">
           {" "}
           · arrives {leg.arrives}
-          {leg.delayMin ? <span className="text-amber-600 dark:text-amber-400"> ({leg.delayMin} min late)</span> : null}
+          {leg.delayMin ? (
+            <span className="text-amber-600 dark:text-amber-400"> · departs {leg.delayMin} min late</span>
+          ) : null}
         </span>
       </span>
     </li>
