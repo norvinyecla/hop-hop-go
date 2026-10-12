@@ -11,6 +11,7 @@ function walk(meters: number): Leg {
     arrives: "08:05",
     durationMin: Math.round(meters / 80),
     walkMeters: meters,
+    path: [],
   };
 }
 
@@ -24,6 +25,7 @@ function ride(delayMin?: number): Leg {
     arrives: "08:25",
     durationMin: 20,
     delayMin,
+    path: [],
   };
 }
 
@@ -53,11 +55,17 @@ describe("scoreJourney", () => {
       scoreJourney(plain),
     );
     expect(scoreJourney(journey({ id: "x", waitMin: 6 }))).toBeGreaterThan(scoreJourney(plain));
-    expect(scoreJourney(journey({ id: "x", legs: [ride(4)] }))).toBeGreaterThan(scoreJourney(plain));
+    expect(scoreJourney(journey({ id: "x", delayMin: 4 }))).toBeGreaterThan(scoreJourney(plain));
+  });
+
+  it("uses the delay at the destination, not the sum of leg delays", () => {
+    // A late first train just shortens the wait for the second; the trip arrives 12 min late, not 16.
+    const lateTwice = journey({ id: "a", legs: [ride(4), ride(12)], delayMin: 12 });
+    expect(scoreJourney(lateTwice)).toBe(scoreJourney(journey({ id: "b", delayMin: 12 })));
   });
 
   it("defaults to the balanced preference", () => {
-    const j = journey({ id: "a", changes: 2, legs: [walk(800), ride(3)], waitMin: 4 });
+    const j = journey({ id: "a", changes: 2, legs: [walk(800), ride()], waitMin: 4, delayMin: 3 });
     expect(scoreJourney(j)).toBe(scoreJourney(j, "balanced"));
   });
 });
@@ -90,7 +98,7 @@ describe("rankJourneys", () => {
 
   it("puts a delayed service behind an otherwise equal one", () => {
     const ranked = rankJourneys([
-      journey({ id: "delayed", legs: [ride(5)] }),
+      journey({ id: "delayed", delayMin: 5 }),
       journey({ id: "on-time" }),
     ]);
     expect(ids(ranked)).toEqual(["on-time", "delayed"]);

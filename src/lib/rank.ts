@@ -14,7 +14,7 @@ type Weights = {
   perWalkKm: number;
   /** Per minute spent waiting before the journey starts. */
   perWaitMin: number;
-  /** Per minute of real-time delay, for the risk that it gets worse. */
+  /** Per minute the journey arrives behind the timetable, for the risk that it gets worse. */
   perDelayMin: number;
 };
 
@@ -29,10 +29,6 @@ export function walkMeters(journey: Journey): number {
   return journey.legs.reduce((total, leg) => total + (leg.walkMeters ?? 0), 0);
 }
 
-function delayMin(journey: Journey): number {
-  return journey.legs.reduce((total, leg) => total + (leg.delayMin ?? 0), 0);
-}
-
 /** Effective minutes for a journey under a preference. Lower is better. */
 export function scoreJourney(journey: Journey, preference: Preference = "balanced"): number {
   const w = WEIGHTS[preference];
@@ -41,7 +37,7 @@ export function scoreJourney(journey: Journey, preference: Preference = "balance
     journey.changes * w.perChange +
     (walkMeters(journey) / 1000) * w.perWalkKm +
     journey.waitMin * w.perWaitMin +
-    delayMin(journey) * w.perDelayMin
+    (journey.delayMin ?? 0) * w.perDelayMin
   );
 }
 
