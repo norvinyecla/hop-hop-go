@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { simplifyPath, type LngLat } from "@/lib/geo";
 import { tfnswGet } from "./client";
 
 // TfNSW product classes we ask the trip planner to leave out:
@@ -16,6 +17,9 @@ const MODE_NAMES: Record<number, string> = {
 // Only the fields we use; Zod drops the rest.
 const stopSchema = z.object({
   name: z.string(),
+  /** [lat, lon] */
+  coord: z.array(z.number()).length(2).optional(),
+  properties: z.object({ platformName: z.string().optional() }).optional(),
   departureTimePlanned: z.string().optional(),
   departureTimeEstimated: z.string().optional(),
   arrivalTimePlanned: z.string().optional(),
@@ -32,6 +36,8 @@ const tripResponseSchema = z.object({
             z.object({
               duration: z.number().optional(),
               distance: z.number().optional(),
+              /** The leg's path as [lat, lon] points. */
+              coords: z.array(z.array(z.number()).length(2)).optional(),
               origin: stopSchema,
               destination: stopSchema,
               transportation: z
@@ -57,6 +63,10 @@ export type Leg = {
   towards?: string;
   from: string;
   to: string;
+  /** Platform the service leaves from, e.g. "Platform 3". Not set for walking or light rail. */
+  platform?: string;
+  /** Platform the service arrives at. */
+  arrivalPlatform?: string;
   /** Sydney local time, HH:mm. */
   departs: string;
   arrives: string;
@@ -64,6 +74,8 @@ export type Leg = {
   /** Minutes behind the timetable, from real-time data. */
   delayMin?: number;
   walkMeters?: number;
+  /** The leg's path for the map, as [lng, lat] points. Kept out of the model's context. */
+  path: LngLat[];
 };
 
 export type Journey = {
@@ -86,6 +98,24 @@ const sydneyTime = new Intl.DateTimeFormat("en-AU", {
 
 function toSydneyTime(iso: string): string {
   return sydneyTime.format(new Date(iso));
+}
+
+type Stop = z.infer<typeof stopSchema>;
+
+/** The stop's platform, if it has one such as "Platform 3". Light rail stops use their own name instead. */
+function platformOf(stop: Stop): string | undefined {
+  const name = stop.properties?.platformName;
+  return name && /^platform\b/i.test(name) ? name : undefined;
+}
+
+/** "Central Station, Platform 16, Sydney" → "Central Station, Sydney" when the platform is reported separately. */
+function stopName(stop: Stop): string {
+  const platform = platformOf(stop);
+  return platform ? stop.name.replace(`, ${platform}`, "") : stop.name;
+}
+
+function toLngLat([lat, lon]: number[]): LngLat {
+  return [lon, lat];
 }
 
 function minutesBetween(fromIso: string, toIso: string): number {
@@ -131,17 +161,24 @@ export async function findTrips(
       const delayMin =
         departPlanned && departActual ? minutesBetween(departPlanned, departActual) : 0;
 
+      const walking = mode === "walk";
+      const ends = [leg.origin.coord, leg.destination.coord].filter((c) => c !== undefined);
+      const path = simplifyPath((leg.coords?.length ? leg.coords : ends).map(toLngLat));
+
       return {
         mode,
-        line: mode === "walk" ? undefined : leg.transportation?.disassembledName,
-        towards: mode === "walk" ? undefined : leg.transportation?.destination?.name,
-        from: leg.origin.name,
-        to: leg.destination.name,
+        line: walking ? undefined : leg.transportation?.disassembledName,
+        towards: walking ? undefined : leg.transportation?.destination?.name,
+        from: stopName(leg.origin),
+        to: stopName(leg.destination),
+        platform: walking ? undefined : platformOf(leg.origin),
+        arrivalPlatform: walking ? undefined : platformOf(leg.destination),
         departs: departActual ? toSydneyTime(departActual) : "",
         arrives: arriveActual ? toSydneyTime(arriveActual) : "",
         durationMin: Math.round((leg.duration ?? 0) / 60),
         delayMin: delayMin > 0 ? delayMin : undefined,
-        walkMeters: mode === "walk" ? leg.distance : undefined,
+        walkMeters: walking ? leg.distance : undefined,
+        path,
       };
     });
 

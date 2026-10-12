@@ -39,4 +39,15 @@ export const planTrip = tool({
       return { journeys: [], error: "Trip planning is unavailable right now." };
     }
   },
+  // Map paths are for the UI only; they would cost the model thousands of tokens.
+  toModelOutput: ({ output }) => ({
+    type: "json",
+    value: {
+      ...output,
+      journeys: output.journeys.map((journey) => ({
+        ...journey,
+        legs: journey.legs.map((leg) => ({ ...leg, path: undefined })),
+      })),
+    },
+  }),
 });

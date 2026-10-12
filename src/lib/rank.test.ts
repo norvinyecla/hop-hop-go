@@ -11,6 +11,7 @@ function walk(meters: number): Leg {
     arrives: "08:05",
     durationMin: Math.round(meters / 80),
     walkMeters: meters,
+    path: [],
   };
 }
 
@@ -24,6 +25,7 @@ function ride(delayMin?: number): Leg {
     arrives: "08:25",
     durationMin: 20,
     delayMin,
+    path: [],
   };
 }
 

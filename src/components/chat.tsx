@@ -2,6 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useRef, useState } from "react";
+import { RouteOptions } from "@/components/route-options";
 import { isToolPart, Thinking, ToolStatus } from "@/components/tool-status";
 import type { ChatMessage } from "@/lib/tools";
 
@@ -89,6 +90,11 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
   const text = message.parts
     .map((part) => (part.type === "text" ? part.text : ""))
     .join("");
+  const trips = message.parts.flatMap((part) =>
+    part.type === "tool-planTrip" && part.state === "output-available" && part.output.journeys.length > 0
+      ? [{ id: part.toolCallId, journeys: part.output.journeys }]
+      : [],
+  );
 
   return (
     <div className="space-y-2">
@@ -104,6 +110,9 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
           {text}
         </div>
       )}
+      {trips.map((trip) => (
+        <RouteOptions key={trip.id} journeys={trip.journeys} />
+      ))}
     </div>
   );
 }
