@@ -69,7 +69,10 @@ export type Leg = {
 export type Journey = {
   departs: string;
   arrives: string;
+  /** From leaving the first stop to arriving at the last; excludes waitMin. */
   durationMin: number;
+  /** Minutes from the request until the journey starts. */
+  waitMin: number;
   changes: number;
   legs: Leg[];
 };
@@ -93,14 +96,19 @@ function minutesBetween(fromIso: string, toIso: string): number {
  * Finds journeys leaving now between two TfNSW location IDs (from findLocations),
  * using trains, metro, light rail and walking only. Journeys keep TfNSW's order.
  */
-export async function findTrips(originId: string, destinationId: string): Promise<Journey[]> {
+export async function findTrips(
+  originId: string,
+  destinationId: string,
+  count = 6,
+): Promise<Journey[]> {
+  const requestedAt = new Date().toISOString();
   const params: Record<string, string> = {
     depArrMacro: "dep",
     type_origin: "any",
     name_origin: originId,
     type_destination: "any",
     name_destination: destinationId,
-    calcNumberOfTrips: "3",
+    calcNumberOfTrips: String(count),
     TfNSWTR: "true",
     excludedMeans: "checkbox",
   };
@@ -146,6 +154,7 @@ export async function findTrips(originId: string, destinationId: string): Promis
       departs: legs[0].departs,
       arrives: legs[legs.length - 1].arrives,
       durationMin: start && end ? minutesBetween(start, end) : 0,
+      waitMin: start ? Math.max(0, minutesBetween(requestedAt, start)) : 0,
       changes: journey.interchanges ?? 0,
       legs,
     };
