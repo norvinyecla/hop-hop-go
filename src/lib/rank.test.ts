@@ -160,6 +160,33 @@ describe("rankJourneys", () => {
     });
   });
 
+  describe("arrive-by searches", () => {
+    it("prefers leaving later when both arrive in time", () => {
+      const ranked = rankJourneys([
+        journey({ id: "early", waitMin: undefined, spareMin: 25 }),
+        journey({ id: "just-in-time", waitMin: undefined, spareMin: 4 }),
+      ]);
+      expect(ids(ranked)).toEqual(["just-in-time", "early"]);
+    });
+
+    it("still prefers a quicker trip that means leaving later", () => {
+      // Both arrive 5 min early; the quicker one leaves 15 min later.
+      const ranked = rankJourneys([
+        journey({ id: "slow", waitMin: undefined, spareMin: 5, durationMin: 45 }),
+        journey({ id: "quick", waitMin: undefined, spareMin: 5, durationMin: 30 }),
+      ]);
+      expect(ids(ranked)).toEqual(["quick", "slow"]);
+    });
+
+    it("puts a trip running late behind one that leaves earlier but arrives in time", () => {
+      const ranked = rankJourneys([
+        journey({ id: "late", waitMin: undefined, spareMin: -3 }),
+        journey({ id: "in-time", waitMin: undefined, spareMin: 20 }),
+      ]);
+      expect(ids(ranked)).toEqual(["in-time", "late"]);
+    });
+  });
+
   it("keeps the original order for ties", () => {
     const ranked = rankJourneys([journey({ id: "first" }), journey({ id: "second" })]);
     expect(ids(ranked)).toEqual(["first", "second"]);

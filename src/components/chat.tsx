@@ -92,7 +92,7 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
     .join("");
   const trips = message.parts.flatMap((part) =>
     part.type === "tool-planTrip" && part.state === "output-available" && part.output.journeys.length > 0
-      ? [{ id: part.toolCallId, journeys: part.output.journeys }]
+      ? [{ id: part.toolCallId, journeys: part.output.journeys, when: part.output.when }]
       : [],
   );
 
@@ -111,7 +111,7 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
         </div>
       )}
       {trips.map((trip) => (
-        <RouteOptions key={trip.id} journeys={trip.journeys} />
+        <RouteOptions key={trip.id} journeys={trip.journeys} when={trip.when} />
       ))}
     </div>
   );

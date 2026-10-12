@@ -6,7 +6,7 @@ import {
   toUIMessageStream,
   type UIMessage,
 } from "ai";
-import { instructions } from "@/lib/instructions";
+import { instructionsAt } from "@/lib/instructions";
 import { getModel } from "@/lib/llm";
 import { tools } from "@/lib/tools";
 
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: getModel(),
-    instructions,
+    instructions: instructionsAt(new Date()),
     // Pass tools so planTrip's toModelOutput also applies to results from earlier turns.
     messages: await convertToModelMessages(messages, { tools }),
     tools,
