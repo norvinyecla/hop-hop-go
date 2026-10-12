@@ -1,13 +1,15 @@
 import type { Leg } from "./tfnsw/trip";
 
-// Transport for NSW line colours. The trip API doesn't return them.
+// Line colours from the route_color field in TfNSW's GTFS schedule feeds (sydneytrains, metro,
+// lightrail/*), checked October 2026. The trip API doesn't return them. Keys are the trip API's
+// line codes: GTFS names the Metro "M", but the trip API calls it "M1".
 const LINE_COLORS: Record<string, string> = {
   T1: "#F99D1C",
   T2: "#0098CD",
   T3: "#F37021",
   T4: "#005AA3",
   T5: "#C4258F",
-  T6: "#7D3F21",
+  T6: "#7C3E21",
   T7: "#6F818E",
   T8: "#00954C",
   T9: "#D11F2F",
@@ -16,6 +18,8 @@ const LINE_COLORS: Record<string, string> = {
   L2: "#DD1E25",
   L3: "#781140",
   L4: "#BB2043",
+  // Light rail special event services.
+  LX: "#EE343F",
   BMT: "#F99D1C",
   CCN: "#D11F2F",
   SCO: "#005AA3",
@@ -23,6 +27,8 @@ const LINE_COLORS: Record<string, string> = {
   HUN: "#833134",
 };
 
+// For lines not listed above. Train (NSW TrainLink regional) and metro are from GTFS;
+// light rail is a generic red, not an official colour.
 const MODE_COLORS: Record<string, string> = {
   train: "#F6891F",
   metro: "#168388",
