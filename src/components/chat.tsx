@@ -1,6 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import { APICallError } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { RouteOptions } from "@/components/route-options";
 import { isToolPart, Thinking, ToolStatus } from "@/components/tool-status";
@@ -54,7 +55,11 @@ export function Chat() {
         )}
         {thinking && <Thinking />}
         {error && (
-          <p className="text-sm text-red-600">Something went wrong. Please try again.</p>
+          <p className="text-sm text-red-600">
+            {APICallError.isInstance(error) && error.statusCode === 429
+              ? error.message
+              : "Something went wrong. Please try again."}
+          </p>
         )}
         <div ref={bottomRef} />
       </main>

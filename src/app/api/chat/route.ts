@@ -8,9 +8,25 @@ import {
 } from "ai";
 import { instructions } from "@/lib/instructions";
 import { getModel } from "@/lib/llm";
+import {
+  chatRateLimiter,
+  clientKey,
+  rateLimitHeaders,
+  rateLimitMessage,
+} from "@/lib/rate-limit";
 import { tools } from "@/lib/tools";
 
 export async function POST(req: Request) {
+  // Check before reading the body so blocked requests cost nothing.
+  const rateLimit = await chatRateLimiter.limit(clientKey(req));
+  const headers = rateLimitHeaders(rateLimit);
+  if (!rateLimit.success) {
+    return new Response(rateLimitMessage(Number(headers["Retry-After"])), {
+      status: 429,
+      headers: { ...headers, "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   const result = streamText({
@@ -24,5 +40,6 @@ export async function POST(req: Request) {
 
   return createUIMessageStreamResponse({
     stream: toUIMessageStream({ stream: result.stream }),
+    headers,
   });
 }

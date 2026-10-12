@@ -64,9 +64,14 @@ TFNSW_API_KEY=
 LLM_PROVIDER=google             # google | anthropic
 LLM_MODEL=gemini-3.1-flash-lite-preview
 LLM_API_KEY=
+RATE_LIMIT_PER_MINUTE=10        # per client IP, 0 = off
+RATE_LIMIT_PER_DAY=100          # per client IP, 0 = off
 ```
 
 The app does not depend on a specific provider. A small `getModel()` helper reads these three variables, builds the matching AI SDK provider and passes `LLM_API_KEY` in directly, instead of relying on each provider's default variable name such as `GOOGLE_GENERATIVE_AI_API_KEY`. Switching providers means changing the variables, not the code.
+
+## Rate limiting
+`/api/chat` is limited per client IP (`x-forwarded-for`) before any model or TfNSW call is made. Blocked requests get a `429` with `Retry-After` and `RateLimit-*` headers, and the chat shows how long to wait. Counts live in memory (`src/lib/rate-limit.ts`), so on Vercel each instance keeps its own counts and they reset on cold starts. If that is not strict enough, implement the `RateLimiter` interface with a shared store such as Upstash Redis.
 
 ## Phases
 
