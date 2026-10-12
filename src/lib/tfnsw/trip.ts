@@ -5,13 +5,14 @@ import { alertsForLeg, fetchAlerts, lineKey, toAlert, toLegAlerts, type LegAlert
 import { tfnswGet } from "./client";
 
 // TfNSW product classes we ask the trip planner to leave out:
-// 5 bus, 7 coach, 9 ferry, 11 school bus.
-const EXCLUDED_MODES = [5, 7, 9, 11];
+// 7 coach, 9 ferry, 11 school bus.
+const EXCLUDED_MODES = [7, 9, 11];
 
 const MODE_NAMES: Record<number, string> = {
   1: "train",
   2: "metro",
   4: "light rail",
+  5: "bus",
   99: "walk",
   100: "walk",
 };
@@ -71,7 +72,7 @@ export type Leg = {
   towards?: string;
   from: string;
   to: string;
-  /** Platform the service leaves from, e.g. "Platform 3". Not set for walking or light rail. */
+  /** Platform or bus stand the service leaves from, e.g. "Platform 3" or "Stand B". Not set for walking or light rail. */
   platform?: string;
   /** Platform the service arrives at. */
   arrivalPlatform?: string;
@@ -123,10 +124,15 @@ function toSydneyTime(iso: string): string {
 
 type Stop = z.infer<typeof stopSchema>;
 
-/** The stop's platform, if it has one such as "Platform 3". Light rail stops use their own name instead. */
+/**
+ * The stop's platform, such as "Platform 3", or bus stand, such as "Stand B". Light rail and most
+ * bus stops use their own name instead. A bus stand ends the name, e.g. "Manly Wharf, West Esplanade, Stand B".
+ */
 function platformOf(stop: Stop): string | undefined {
   const name = stop.properties?.platformName;
-  return name && /^platform\b/i.test(name) ? name : undefined;
+  if (!name) return undefined;
+  if (/^platform\b/i.test(name)) return name;
+  return name.match(/\bStand [A-Z0-9]+$/i)?.[0];
 }
 
 /** "Central Station, Platform 16, Sydney" → "Central Station, Sydney" when the platform is reported separately. */
@@ -155,7 +161,7 @@ async function fetchAlertsOrNone(): Promise<ServiceAlert[]> {
 
 /**
  * Finds journeys between two TfNSW location IDs (from findLocations), leaving now or at/by
- * `when`, using trains, metro, light rail and walking only. Journeys keep TfNSW's order.
+ * `when`, using trains, metro, light rail, buses and walking only. Journeys keep TfNSW's order.
  */
 export async function findTrips(
   originId: string,

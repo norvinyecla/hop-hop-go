@@ -39,7 +39,7 @@ function describe(part: ToolPart): { label: string; done: boolean; failed?: bool
   }
 
   if (part.state !== "output-available") {
-    return { label: "Finding trains…", done: false };
+    return { label: "Finding routes…", done: false };
   }
   if ("error" in part.output && part.output.error) {
     return { label: part.output.error, done: true, failed: true };
@@ -47,7 +47,7 @@ function describe(part: ToolPart): { label: string; done: boolean; failed?: bool
   const count = part.output.journeys.length;
   return count > 0
     ? { label: `Found ${count} ${count === 1 ? "journey" : "journeys"}`, done: true }
-    : { label: "No rail journey found", done: true, failed: true };
+    : { label: "No journey found", done: true, failed: true };
 }
 
 export function isToolPart(part: ChatMessage["parts"][number]): part is ToolPart {

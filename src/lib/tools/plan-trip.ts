@@ -11,10 +11,11 @@ const PAST_GRACE_MS = 15 * 60_000;
 
 export const planTrip = tool({
   description:
-    "Find journeys between two locations, using trains, Sydney Metro, light rail and walking. " +
+    "Find journeys between two locations, using trains, Sydney Metro, light rail, buses and walking. " +
     "Leaves now unless `when` is given. Both IDs must come from resolveLocation. " +
     "Returns up to 3 journeys ranked best first, with times in Sydney local time (HH:mm). " +
-    "Legs may list alerts: trackwork or service changes on that line or at its stations while the leg runs.",
+    "Legs may list alerts: trackwork or service changes on that line or at its stations while the leg runs. " +
+    "Bus legs only list alerts TfNSW attaches to the trip itself.",
   inputSchema: z.object({
     originId: z.string().min(1).describe("The id of the starting location, from resolveLocation"),
     destinationId: z.string().min(1).describe("The id of the destination location, from resolveLocation"),
@@ -56,7 +57,7 @@ export const planTrip = tool({
         return {
           when,
           journeys,
-          message: "No train, metro or light rail journey was found between these locations.",
+          message: "No train, metro, light rail or bus journey was found between these locations.",
         };
       }
       return { when, journeys };
