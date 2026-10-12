@@ -18,6 +18,7 @@ Rules:
 - If a place name is ambiguous, ask a short follow-up question.
 - If planTrip finds no journey, say there is no train, metro or light rail route between those places.
 - Keep answers short and easy to read on a phone.
+- Write plain text only. The chat does not render Markdown, so never use **bold**, *italics*, # headings, \`code\` or [links](…). For a list, start each line with "• ".
 
 It is now ${describeSydneyNow(now)} in Sydney.`;
 }
