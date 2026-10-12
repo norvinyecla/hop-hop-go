@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { simplifyPath, type LngLat } from "@/lib/geo";
+import { dayLabel, fromSydney, toSydney, type SydneyDateTime } from "@/lib/sydney-time";
 import { alertsForLeg, fetchAlerts, lineKey, toAlert, toLegAlerts, type LegAlert, type ServiceAlert } from "./alerts";
 import { tfnswGet } from "./client";
 
@@ -87,13 +88,26 @@ export type Leg = {
   path: LngLat[];
 };
 
+/** Leave at, or arrive by, a Sydney local time. Searches without one leave now. */
+export type TripTime = SydneyDateTime & { type: "depart" | "arrive" };
+
 export type Journey = {
   departs: string;
   arrives: string;
+  /** The day the journey leaves, e.g. "Tue, 13 Oct". Only set when that isn't today. */
+  day?: string;
   /** From leaving the first stop to arriving at the last; excludes waitMin. */
   durationMin: number;
-  /** Minutes from the request until the journey starts. */
-  waitMin: number;
+  /**
+   * Minutes from the requested time (now, or the leave-at time) until the journey starts.
+   * Not set for arrive-by searches.
+   */
+  waitMin?: number;
+  /**
+   * For arrive-by searches: minutes between arriving and the arrive-by time.
+   * Negative when real-time data says it will arrive late.
+   */
+  spareMin?: number;
   /**
    * Minutes behind the timetable at the destination, from real-time data. A late first
    * service often just shortens the wait for the next, so this is not the sum of leg delays.
@@ -103,15 +117,8 @@ export type Journey = {
   legs: Leg[];
 };
 
-const sydneyTime = new Intl.DateTimeFormat("en-AU", {
-  timeZone: "Australia/Sydney",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
 function toSydneyTime(iso: string): string {
-  return sydneyTime.format(new Date(iso));
+  return toSydney(new Date(iso)).time;
 }
 
 type Stop = z.infer<typeof stopSchema>;
@@ -136,10 +143,6 @@ function minutesBetween(fromIso: string, toIso: string): number {
   return Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 60_000);
 }
 
-/**
- * Finds journeys leaving now between two TfNSW location IDs (from findLocations),
- * using trains, metro, light rail and walking only. Journeys keep TfNSW's order.
- */
 async function fetchAlertsOrNone(): Promise<ServiceAlert[]> {
   try {
     return await fetchAlerts();
@@ -150,14 +153,21 @@ async function fetchAlertsOrNone(): Promise<ServiceAlert[]> {
   }
 }
 
+/**
+ * Finds journeys between two TfNSW location IDs (from findLocations), leaving now or at/by
+ * `when`, using trains, metro, light rail and walking only. Journeys keep TfNSW's order.
+ */
 export async function findTrips(
   originId: string,
   destinationId: string,
+  when?: TripTime,
   count = 6,
 ): Promise<Journey[]> {
-  const requestedAt = new Date().toISOString();
+  const now = new Date();
+  const requestedAt = (when ? fromSydney(when) : now).toISOString();
+  const today = toSydney(now).date;
   const params: Record<string, string> = {
-    depArrMacro: "dep",
+    depArrMacro: when?.type === "arrive" ? "arr" : "dep",
     type_origin: "any",
     name_origin: originId,
     type_destination: "any",
@@ -166,6 +176,10 @@ export async function findTrips(
     TfNSWTR: "true",
     excludedMeans: "checkbox",
   };
+  if (when) {
+    params.itdDate = when.date.replaceAll("-", "");
+    params.itdTime = when.time.replace(":", "");
+  }
   for (const mode of EXCLUDED_MODES) {
     params[`exclMOT_${mode}`] = "1";
   }
@@ -229,11 +243,16 @@ export async function findTrips(
     const delayMin =
       last.arrivalTimePlanned && end ? minutesBetween(last.arrivalTimePlanned, end) : 0;
 
+    const arriving = when?.type === "arrive";
+    const startDate = start ? new Date(start) : undefined;
+
     return {
       departs: legs[0].departs,
       arrives: legs[legs.length - 1].arrives,
+      day: startDate && toSydney(startDate).date !== today ? dayLabel(startDate) : undefined,
       durationMin: start && end ? minutesBetween(start, end) : 0,
-      waitMin: start ? Math.max(0, minutesBetween(requestedAt, start)) : 0,
+      waitMin: arriving ? undefined : start ? Math.max(0, minutesBetween(requestedAt, start)) : 0,
+      spareMin: arriving && end ? minutesBetween(end, requestedAt) : undefined,
       delayMin: delayMin > 0 ? delayMin : undefined,
       changes: journey.interchanges ?? 0,
       legs,

@@ -4,8 +4,9 @@ export const PREFERENCES = ["balanced", "fastest", "fewest-changes", "least-walk
 export type Preference = (typeof PREFERENCES)[number];
 
 /**
- * How much each factor costs, in minutes. A journey's score is the minutes until it arrives
- * plus these penalties, so lower is better and scores read as "effective minutes".
+ * How much each factor costs, in minutes. A journey's score is the minutes it takes up (from
+ * the requested time until it arrives, or for arrive-by searches from leaving until the
+ * arrive-by time) plus these penalties, so lower is better and scores read as "effective minutes".
  */
 type Weights = {
   /** Per change of service. */
@@ -27,6 +28,9 @@ const WEIGHTS: Record<Preference, Weights> = {
   "least-walking": { perChange: 5, perWalkKm: 60, perDelayMin: 0.1 },
 };
 
+/** For arrive-by searches, the cost of each minute a journey would arrive late. */
+const PER_LATE_MIN = 10;
+
 export function walkMeters(journey: Journey): number {
   return journey.legs.reduce((total, leg) => total + (leg.walkMeters ?? 0), 0);
 }
@@ -34,9 +38,14 @@ export function walkMeters(journey: Journey): number {
 /** Effective minutes for a journey under a preference. Lower is better. */
 export function scoreJourney(journey: Journey, preference: Preference = "balanced"): number {
   const w = WEIGHTS[preference];
+  // Waiting at home counts the same as time on the train. When arriving by a set time, that
+  // wait is the spare time at the other end instead: leaving later is better, arriving late much worse.
+  let waiting = journey.waitMin ?? 0;
+  if (journey.spareMin !== undefined) {
+    waiting = journey.spareMin >= 0 ? journey.spareMin : -journey.spareMin * PER_LATE_MIN;
+  }
   return (
-    // Minutes from now until arrival: waiting at home counts the same as time on the train.
-    journey.waitMin +
+    waiting +
     journey.durationMin +
     journey.changes * w.perChange +
     (walkMeters(journey) / 1000) * w.perWalkKm +

@@ -4,6 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { useEffect, useRef, useState } from "react";
 import { RouteOptions } from "@/components/route-options";
 import { isToolPart, Thinking, ToolStatus } from "@/components/tool-status";
+import { plainText } from "@/lib/plain-text";
 import type { ChatMessage } from "@/lib/tools";
 
 export function Chat() {
@@ -87,12 +88,12 @@ export function Chat() {
 
 function AssistantMessage({ message }: { message: ChatMessage }) {
   const toolParts = message.parts.filter(isToolPart);
-  const text = message.parts
-    .map((part) => (part.type === "text" ? part.text : ""))
-    .join("");
+  const text = plainText(
+    message.parts.map((part) => (part.type === "text" ? part.text : "")).join(""),
+  );
   const trips = message.parts.flatMap((part) =>
     part.type === "tool-planTrip" && part.state === "output-available" && part.output.journeys.length > 0
-      ? [{ id: part.toolCallId, journeys: part.output.journeys }]
+      ? [{ id: part.toolCallId, journeys: part.output.journeys, when: part.output.when }]
       : [],
   );
 
@@ -111,7 +112,7 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
         </div>
       )}
       {trips.map((trip) => (
-        <RouteOptions key={trip.id} journeys={trip.journeys} />
+        <RouteOptions key={trip.id} journeys={trip.journeys} when={trip.when} />
       ))}
     </div>
   );

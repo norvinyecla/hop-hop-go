@@ -4,8 +4,9 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { legColor } from "@/lib/lines";
 import { walkMeters } from "@/lib/rank";
+import { dayLabel, fromSydney, toSydney } from "@/lib/sydney-time";
 import type { LegAlert } from "@/lib/tfnsw/alerts";
-import type { Journey, Leg } from "@/lib/tfnsw/trip";
+import type { Journey, Leg, TripTime } from "@/lib/tfnsw/trip";
 
 // MapLibre needs the browser (WebGL, window), so skip it during server rendering.
 const RouteMap = dynamic(() => import("@/components/route-map"), {
@@ -78,20 +79,31 @@ function LineBadge({ leg }: { leg: Leg }) {
   );
 }
 
-function Summary({ journey }: { journey: Journey }) {
+/** "Arriving by 21:00", "Leaving after 06:30 Tue, 13 Oct". The day is left out for today. */
+function searchLabel(when: TripTime): string {
+  const at = fromSydney(when);
+  const day = when.date === toSydney(new Date()).date ? "" : ` ${dayLabel(at)}`;
+  return `${when.type === "arrive" ? "Arriving by" : "Leaving after"} ${when.time}${day}`;
+}
+
+function Summary({ journey, leavingNow }: { journey: Journey; leavingNow: boolean }) {
   const walked = walkMeters(journey);
   const delay = journey.delayMin ?? 0;
+  const spare = journey.spareMin;
   const alerts = journeyAlerts(journey);
   const facts = [
     journey.changes === 0 ? "No changes" : `${journey.changes} ${journey.changes === 1 ? "change" : "changes"}`,
     walked > 0 ? `${walkLabel(walked)} walk` : null,
-    journey.waitMin > 0 ? `leaves in ${minutes(journey.waitMin)}` : "leaves now",
+    // A leave-at search shows its departure time instead; "leaves in" would count from the requested time.
+    leavingNow ? (journey.waitMin ? `leaves in ${minutes(journey.waitMin)}` : "leaves now") : null,
+    spare !== undefined && spare >= 0 ? `${minutes(spare)} to spare` : null,
   ].filter(Boolean);
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-semibold tabular-nums">
+          {journey.day && <span className="font-normal opacity-70">{journey.day} · </span>}
           {journey.departs} → {journey.arrives}
         </span>
         <span className="text-sm tabular-nums opacity-70">{minutes(journey.durationMin)}</span>
@@ -107,6 +119,9 @@ function Summary({ journey }: { journey: Journey }) {
       <p className="text-xs opacity-70">
         {facts.join(" · ")}
         {delay > 0 && <span className="text-amber-600 dark:text-amber-400"> · {delay} min late</span>}
+        {spare !== undefined && spare < 0 && (
+          <span className="text-amber-600 dark:text-amber-400"> · {-spare} min after your arrival time</span>
+        )}
         {alerts.length > 0 && (
           <span className="text-amber-600 dark:text-amber-400"> · ⚠ {alertsLabel(alerts)}</span>
         )}
@@ -178,7 +193,7 @@ function scrollToCard(track: HTMLElement, i: number, behavior: ScrollBehavior) {
   track.scrollTo({ left: cardLeft(track, card) - padding, behavior });
 }
 
-export function RouteOptions({ journeys }: { journeys: Journey[] }) {
+export function RouteOptions({ journeys, when }: { journeys: Journey[]; when?: TripTime }) {
   const [selected, setSelected] = useState(0);
   const track = useRef<HTMLOListElement>(null);
   const settle = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -263,6 +278,8 @@ export function RouteOptions({ journeys }: { journeys: Journey[] }) {
     <div className="overflow-hidden rounded-2xl border border-black/10 dark:border-white/15">
       <RouteMap journeys={journeys} selected={selected} />
 
+      {when && <p className="px-4 pt-3 text-xs font-medium opacity-70">{searchLabel(when)}</p>}
+
       <ol
         ref={track}
         onScroll={onScroll}
@@ -301,7 +318,7 @@ export function RouteOptions({ journeys }: { journeys: Journey[] }) {
                     Best
                   </span>
                 )}
-                <Summary journey={journey} />
+                <Summary journey={journey} leavingNow={!when} />
               </button>
             </li>
           );
