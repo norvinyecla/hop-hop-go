@@ -28,11 +28,13 @@ const LINE_COLORS: Record<string, string> = {
 };
 
 // For lines not listed above. Train (NSW TrainLink regional) and metro are from GTFS;
-// light rail is a generic red, not an official colour.
+// light rail is a generic red, not an official colour. Bus is TfNSW's bus mode colour, used for
+// every bus route rather than per-route colours.
 const MODE_COLORS: Record<string, string> = {
   train: "#F6891F",
   metro: "#168388",
   "light rail": "#E4022D",
+  bus: "#00B5EF",
 };
 
 export const WALK_COLOR = "#6B7280";
