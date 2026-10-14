@@ -11,6 +11,10 @@ import {
 } from "@/lib/rate-limit";
 import { tools, type ChatMessage } from "@/lib/tools";
 
+// Platform timeout in seconds. Next reads it at build time, so it must be a literal. Keep it
+// above RESPONSE_LIMITS.maxResponseMs so the SDK's timeout ends the stream before the platform kills it.
+export const maxDuration = 90;
+
 export async function POST(req: Request) {
   // Check before reading the body so blocked requests cost nothing.
   const rateLimit = await chatRateLimiter.limit(clientKey(req));

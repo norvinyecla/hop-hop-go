@@ -17,7 +17,10 @@ export const RESPONSE_LIMITS = {
    * thinking tokens towards this too.
    */
   maxOutputTokens: 1_100,
-  /** The whole response, as a backstop for when a client disconnect goes unnoticed. */
+  /**
+   * The whole response, as a backstop for when a client disconnect goes unnoticed. Must stay
+   * below maxDuration in the chat route, which is the platform's hard limit.
+   */
   maxResponseMs: 60_000,
 };
 
