@@ -9,7 +9,7 @@ import {
   rateLimitHeaders,
   rateLimitMessage,
 } from "@/lib/rate-limit";
-import { tools } from "@/lib/tools";
+import { tools, type ChatMessage } from "@/lib/tools";
 
 export async function POST(req: Request) {
   // Check before reading the body so blocked requests cost nothing.
@@ -46,7 +46,11 @@ export async function POST(req: Request) {
   });
 
   return createUIMessageStreamResponse({
-    stream: toUIMessageStream({ stream: result.stream }),
+    stream: toUIMessageStream<typeof tools, ChatMessage>({
+      stream: result.stream,
+      // The last finish part carries the final step's reason, so the UI can say when a reply hit the cap.
+      messageMetadata: ({ part }) => (part.type === "finish" ? { finishReason: part.finishReason } : undefined),
+    }),
     headers,
   });
 }
