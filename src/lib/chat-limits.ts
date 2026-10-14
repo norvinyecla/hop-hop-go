@@ -16,7 +16,7 @@ export const RESPONSE_LIMITS = {
    * Tokens the model may generate in each step. Replies are short plain text. Gemini counts
    * thinking tokens towards this too.
    */
-  maxOutputTokens: 1_200,
+  maxOutputTokens: 1_100,
   /** The whole response, as a backstop for when a client disconnect goes unnoticed. */
   maxResponseMs: 60_000,
 };
