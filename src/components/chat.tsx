@@ -18,7 +18,7 @@ const transport = new DefaultChatTransport<ChatMessage>({
 
 export function Chat() {
   const [input, setInput] = useState("");
-  const { messages, sendMessage, status, error } = useChat<ChatMessage>({ transport });
+  const { messages, sendMessage, status, error, stop } = useChat<ChatMessage>({ transport });
   const bottomRef = useRef<HTMLDivElement>(null);
   const busy = status === "submitted" || status === "streaming";
   // Show "Thinking…" while a reply is in progress but nothing else on screen is moving:
@@ -58,7 +58,11 @@ export function Chat() {
               )}
             </div>
           ) : (
-            <AssistantMessage key={message.id} message={message} />
+            <AssistantMessage
+              key={message.id}
+              message={message}
+              active={busy && message.id === last?.id}
+            />
           ),
         )}
         {thinking && <Thinking />}
@@ -88,20 +92,35 @@ export function Chat() {
           placeholder="From A to B…"
           onChange={(e) => setInput(e.currentTarget.value)}
         />
-        <button
-          type="submit"
-          disabled={busy || !input.trim()}
-          className="rounded-full bg-blue-600 px-4 py-2 font-medium text-white disabled:opacity-40"
-        >
-          Go
-        </button>
+        {/* Stopping keeps the partial reply and sets status back to "ready" without an error. */}
+        {busy ? (
+          <button
+            type="button"
+            onClick={() => stop()}
+            className="rounded-full border border-black/15 px-4 py-2 font-medium dark:border-white/20"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={!input.trim()}
+            className="rounded-full bg-blue-600 px-4 py-2 font-medium text-white disabled:opacity-40"
+          >
+            Go
+          </button>
+        )}
       </form>
     </div>
   );
 }
 
-function AssistantMessage({ message }: { message: ChatMessage }) {
-  const toolParts = message.parts.filter(isToolPart);
+function AssistantMessage({ message, active }: { message: ChatMessage; active: boolean }) {
+  // A reply that was stopped or failed mid-call leaves calls that will never finish, so hide
+  // them rather than spin forever. The server drops them from the history too.
+  const toolParts = message.parts
+    .filter(isToolPart)
+    .filter((part) => active || part.state === "output-available" || part.state === "output-error");
   const text = plainText(
     message.parts.map((part) => (part.type === "text" ? part.text : "")).join(""),
   );
