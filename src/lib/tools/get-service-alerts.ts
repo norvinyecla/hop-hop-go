@@ -56,6 +56,23 @@ export const getServiceAlerts = tool({
       .optional()
       .describe("Last day to check, YYYY-MM-DD in Sydney. Leave out for a week from fromDate."),
   }),
+  // Lets validateUIMessages reject malformed results in the history a client sends back.
+  outputSchema: z.strictObject({
+    total: z.number().int().nonnegative(),
+    alerts: z
+      .array(
+        z.strictObject({
+          kind: z.enum(["trackwork", "service change"]),
+          title: z.string(),
+          detail: z.string().optional(),
+          lines: z.array(z.string()),
+          when: z.array(z.string()).max(MAX_WINDOWS),
+          url: z.string().optional(),
+        }),
+      )
+      .max(MAX_ALERTS),
+    error: z.string().optional(),
+  }),
   execute: async ({ lines, fromDate, toDate }) => {
     const now = new Date();
     const firstDay = fromDate ?? sydneyDate(now);

@@ -1,16 +1,24 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { APICallError } from "ai";
+import { APICallError, DefaultChatTransport } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { RouteOptions } from "@/components/route-options";
 import { isToolPart, Thinking, ToolStatus } from "@/components/tool-status";
+import { CHAT_LIMITS, recentMessages } from "@/lib/chat-limits";
 import { plainText } from "@/lib/plain-text";
 import type { ChatMessage } from "@/lib/tools";
 
+// The server caps the history it accepts, so send only the most recent messages.
+const transport = new DefaultChatTransport<ChatMessage>({
+  prepareSendMessagesRequest: ({ id, messages, body, trigger, messageId }) => ({
+    body: { ...body, id, messages: recentMessages(messages), trigger, messageId },
+  }),
+});
+
 export function Chat() {
   const [input, setInput] = useState("");
-  const { messages, sendMessage, status, error } = useChat<ChatMessage>();
+  const { messages, sendMessage, status, error } = useChat<ChatMessage>({ transport });
   const bottomRef = useRef<HTMLDivElement>(null);
   const busy = status === "submitted" || status === "streaming";
   // Show "Thinking…" while a reply is in progress but nothing else on screen is moving:
@@ -56,7 +64,7 @@ export function Chat() {
         {thinking && <Thinking />}
         {error && (
           <p className="text-sm text-red-600">
-            {APICallError.isInstance(error) && error.statusCode === 429
+            {APICallError.isInstance(error) && [400, 413, 429].includes(error.statusCode ?? 0)
               ? error.message
               : "Something went wrong. Please try again."}
           </p>
@@ -76,6 +84,7 @@ export function Chat() {
         <input
           className="flex-1 rounded-full border border-black/15 bg-transparent px-4 py-2 text-base outline-none focus:border-blue-600 dark:border-white/20"
           value={input}
+          maxLength={CHAT_LIMITS.maxUserTextChars}
           placeholder="From A to B…"
           onChange={(e) => setInput(e.currentTarget.value)}
         />

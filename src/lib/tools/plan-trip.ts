@@ -6,6 +6,49 @@ import { findTrips } from "@/lib/tfnsw/trip";
 
 const MAX_JOURNEYS = 3;
 
+// A plain pattern rather than z.iso.date(): some providers reject JSON Schema's "format: date".
+const sydneyDateSchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/);
+const sydneyTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+const legAlertSchema = z.strictObject({
+  id: z.string(),
+  kind: z.enum(["trackwork", "service change"]),
+  title: z.string(),
+  detail: z.string().optional(),
+  url: z.string().optional(),
+});
+
+const legSchema = z.strictObject({
+  mode: z.string(),
+  line: z.string().optional(),
+  towards: z.string().optional(),
+  from: z.string(),
+  to: z.string(),
+  platform: z.string().optional(),
+  arrivalPlatform: z.string().optional(),
+  departs: sydneyTimeSchema,
+  arrives: sydneyTimeSchema,
+  durationMin: z.number(),
+  delayMin: z.number().optional(),
+  walkMeters: z.number().optional(),
+  alerts: z.array(legAlertSchema).optional(),
+  path: z.array(z.tuple([z.number(), z.number()])),
+});
+
+const journeySchema = z.strictObject({
+  departs: sydneyTimeSchema,
+  arrives: sydneyTimeSchema,
+  day: z.string().optional(),
+  durationMin: z.number(),
+  waitMin: z.number().optional(),
+  spareMin: z.number().optional(),
+  delayMin: z.number().optional(),
+  changes: z.number().int().nonnegative(),
+  legs: z.array(legSchema).min(1),
+});
+
 /** How far in the past a requested time may be, so "leave at 9:00" still works at 9:03. */
 const PAST_GRACE_MS = 15 * 60_000;
 
@@ -31,18 +74,20 @@ export const planTrip = tool({
         type: z
           .enum(["depart", "arrive"])
           .describe("'depart' to leave at or after this time, 'arrive' to arrive by it"),
-        // A plain pattern rather than z.iso.date(): some providers reject JSON Schema's "format: date".
-        date: z
-          .string()
-          .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/)
-          .describe("Sydney local date, YYYY-MM-DD"),
-        time: z
-          .string()
-          .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
-          .describe("Sydney local time, 24-hour HH:mm"),
+        date: sydneyDateSchema.describe("Sydney local date, YYYY-MM-DD"),
+        time: sydneyTimeSchema.describe("Sydney local time, 24-hour HH:mm"),
       })
       .optional()
       .describe("Only when the user gives a time to leave or arrive. Omit to leave now."),
+  }),
+  // Lets validateUIMessages reject malformed results in the history a client sends back.
+  outputSchema: z.strictObject({
+    when: z
+      .strictObject({ type: z.enum(["depart", "arrive"]), date: sydneyDateSchema, time: sydneyTimeSchema })
+      .optional(),
+    journeys: z.array(journeySchema).max(MAX_JOURNEYS),
+    message: z.string().optional(),
+    error: z.string().optional(),
   }),
   execute: async ({ originId, destinationId, preference, when }) => {
     if (when && fromSydney(when).getTime() < Date.now() - PAST_GRACE_MS) {

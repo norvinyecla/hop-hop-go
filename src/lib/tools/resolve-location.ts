@@ -13,6 +13,24 @@ export const resolveLocation = tool({
       .min(1)
       .describe('The place as the user described it, e.g. "Central Station", "Manly Wharf", "Sydney Opera House"'),
   }),
+  // Lets validateUIMessages reject malformed results in the history a client sends back.
+  outputSchema: z.strictObject({
+    query: z.string(),
+    candidates: z
+      .array(
+        z.strictObject({
+          id: z.string(),
+          name: z.string(),
+          type: z.string(),
+          lat: z.number().optional(),
+          lon: z.number().optional(),
+          suburb: z.string().optional(),
+          isBest: z.boolean(),
+        }),
+      )
+      .max(5),
+    error: z.string().optional(),
+  }),
   execute: async ({ query }) => {
     try {
       const candidates = await findLocations(query);
