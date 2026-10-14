@@ -56,7 +56,7 @@ The weights can change based on what the user says in the conversation, e.g. "fe
 - **Zod** for tool input schemas and parsing TfNSW responses
 - **Tailwind CSS**, mobile-first layout
 - **MapLibre GL** (phase 2)
-- **Hosting**: Vercel. API keys stay on the server.
+- **Hosting**: Vercel. API keys stay on the server. `/api/chat` exports `maxDuration = 90` (seconds), above its own 60s response limit, so it does not fall back to the platform's default function timeout. Vercel allows 90s on every plan with Fluid compute, which is on by default for new projects.
 
 ## Environment variables
 ```
