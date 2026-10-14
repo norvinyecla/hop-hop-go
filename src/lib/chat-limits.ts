@@ -10,6 +10,17 @@ export const CHAT_LIMITS = {
   maxModelChars: 200_000,
 };
 
+/** Limits on the work /api/chat does for one request. */
+export const RESPONSE_LIMITS = {
+  /**
+   * Tokens the model may generate in each step. Replies are short plain text. Gemini counts
+   * thinking tokens towards this too.
+   */
+  maxOutputTokens: 1_200,
+  /** The whole response, as a backstop for when a client disconnect goes unnoticed. */
+  maxResponseMs: 60_000,
+};
+
 /**
  * The most recent messages that fit within maxMessages, starting at a user message so a
  * reply is never cut off from its question.

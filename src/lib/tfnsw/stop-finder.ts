@@ -29,12 +29,8 @@ export type Location = {
 };
 
 /** Looks up stops, places and addresses matching a free-text query, best match first. */
-export async function findLocations(query: string, limit = 5): Promise<Location[]> {
-  const data = await tfnswGet("stop_finder", {
-    type_sf: "any",
-    name_sf: query,
-    TfNSWSF: "true",
-  });
+export async function findLocations(query: string, signal?: AbortSignal, limit = 5): Promise<Location[]> {
+  const data = await tfnswGet("stop_finder", { type_sf: "any", name_sf: query, TfNSWSF: "true" }, signal);
 
   const { locations } = stopFinderResponseSchema.parse(data);
 

@@ -167,6 +167,7 @@ export async function findTrips(
   originId: string,
   destinationId: string,
   when?: TripTime,
+  signal?: AbortSignal,
   count = 6,
 ): Promise<Journey[]> {
   const now = new Date();
@@ -190,7 +191,8 @@ export async function findTrips(
     params[`exclMOT_${mode}`] = "1";
   }
 
-  const [data, alerts] = await Promise.all([tfnswGet("trip", params), fetchAlertsOrNone()]);
+  // Alerts are shared between requests (see fetchAlerts), so one client leaving mustn't cancel them.
+  const [data, alerts] = await Promise.all([tfnswGet("trip", params, signal), fetchAlertsOrNone()]);
   const { journeys } = tripResponseSchema.parse(data);
 
   return journeys.map((journey) => {
