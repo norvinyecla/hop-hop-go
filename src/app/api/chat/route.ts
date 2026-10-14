@@ -1,11 +1,5 @@
-import {
-  convertToModelMessages,
-  createUIMessageStreamResponse,
-  isStepCount,
-  streamText,
-  toUIMessageStream,
-  type UIMessage,
-} from "ai";
+import { createUIMessageStreamResponse, isStepCount, streamText, toUIMessageStream } from "ai";
+import { ChatRequestError, parseChatRequest } from "@/lib/chat-request";
 import { instructions } from "@/lib/instructions";
 import { getModel } from "@/lib/llm";
 import {
@@ -27,13 +21,21 @@ export async function POST(req: Request) {
     });
   }
 
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  let messages;
+  try {
+    messages = await parseChatRequest(req);
+  } catch (error) {
+    if (!(error instanceof ChatRequestError)) throw error;
+    return new Response(error.message, {
+      status: error.status,
+      headers: { ...headers, "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
 
   const result = streamText({
     model: getModel(),
     instructions: instructions(),
-    // Pass tools so planTrip's toModelOutput also applies to results from earlier turns.
-    messages: await convertToModelMessages(messages, { tools }),
+    messages,
     tools,
     stopWhen: isStepCount(5),
   });
