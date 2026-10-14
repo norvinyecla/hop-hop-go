@@ -147,6 +147,9 @@ function AssistantMessage({ message, active }: { message: ChatMessage; active: b
       {trips.map((trip) => (
         <RouteOptions key={trip.id} journeys={trip.journeys} when={trip.when} />
       ))}
+      {message.metadata?.finishReason === "length" && (
+        <p className="text-sm opacity-60">This reply was cut short.</p>
+      )}
     </div>
   );
 }

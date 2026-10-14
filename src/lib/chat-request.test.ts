@@ -48,6 +48,13 @@ describe("parseChatRequest", () => {
     expect(messages.map((m) => m.role)).toEqual(["user", "assistant", "tool", "assistant", "user"]);
   });
 
+  it("accepts replies carrying the finish reason the server set", async () => {
+    const reply = { ...assistant({ type: "text", text: "Take the T1 and" }), metadata: { finishReason: "length" } };
+    const messages = await parseChatRequest(post({ messages: [user("hi"), reply, user("go on", "u2")] }));
+    expect(messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+    expect(JSON.stringify(messages)).not.toContain("finishReason");
+  });
+
   it("drops tool calls that never finished", async () => {
     const unfinished = { ...resolved, toolCallId: "call-2", state: "input-available", output: undefined };
     const messages = await parseChatRequest(
