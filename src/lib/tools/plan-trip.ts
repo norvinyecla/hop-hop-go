@@ -89,12 +89,12 @@ export const planTrip = tool({
     message: z.string().optional(),
     error: z.string().optional(),
   }),
-  execute: async ({ originId, destinationId, preference, when }) => {
+  execute: async ({ originId, destinationId, preference, when }, { abortSignal }) => {
     if (when && fromSydney(when).getTime() < Date.now() - PAST_GRACE_MS) {
       return { when, journeys: [], error: "That time has already passed." };
     }
     try {
-      const journeys = rankJourneys(await findTrips(originId, destinationId, when), preference).slice(
+      const journeys = rankJourneys(await findTrips(originId, destinationId, when, abortSignal), preference).slice(
         0,
         MAX_JOURNEYS,
       );
@@ -107,6 +107,8 @@ export const planTrip = tool({
       }
       return { when, journeys };
     } catch (error) {
+      // The client left; nobody will see the result.
+      if (abortSignal?.aborted) throw error;
       console.error("planTrip failed", error);
       return { when, journeys: [], error: "Trip planning is unavailable right now." };
     }

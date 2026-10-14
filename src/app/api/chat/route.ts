@@ -1,4 +1,5 @@
 import { createUIMessageStreamResponse, isStepCount, streamText, toUIMessageStream } from "ai";
+import { RESPONSE_LIMITS } from "@/lib/chat-limits";
 import { ChatRequestError, parseChatRequest } from "@/lib/chat-request";
 import { instructions } from "@/lib/instructions";
 import { getModel } from "@/lib/llm";
@@ -38,6 +39,10 @@ export async function POST(req: Request) {
     messages,
     tools,
     stopWhen: isStepCount(5),
+    maxOutputTokens: RESPONSE_LIMITS.maxOutputTokens,
+    // Stops the model and any running tools when the client disconnects.
+    abortSignal: req.signal,
+    timeout: { totalMs: RESPONSE_LIMITS.maxResponseMs },
   });
 
   return createUIMessageStreamResponse({

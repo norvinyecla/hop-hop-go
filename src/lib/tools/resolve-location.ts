@@ -31,11 +31,13 @@ export const resolveLocation = tool({
       .max(5),
     error: z.string().optional(),
   }),
-  execute: async ({ query }) => {
+  execute: async ({ query }, { abortSignal }) => {
     try {
-      const candidates = await findLocations(query);
+      const candidates = await findLocations(query, abortSignal);
       return { query, candidates };
     } catch (error) {
+      // The client left; nobody will see the result.
+      if (abortSignal?.aborted) throw error;
       console.error("resolveLocation failed", error);
       return { query, candidates: [], error: "Location lookup is unavailable right now." };
     }
