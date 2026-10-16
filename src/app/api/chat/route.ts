@@ -46,10 +46,13 @@ export async function POST(req: Request) {
     (turn) => {
       turn.update({ input: lastUserText(messages) });
       let ended = false;
-      const end = (output: unknown, metadata?: Record<string, unknown>, level?: "WARNING" | "ERROR") => {
+      const end = (
+        output: unknown,
+        { metadata, level, statusMessage }: { metadata?: Record<string, unknown>; level?: "WARNING" | "ERROR"; statusMessage?: string } = {},
+      ) => {
         if (ended) return;
         ended = true;
-        turn.update({ output, metadata, level });
+        turn.update({ output, metadata, level, statusMessage });
         turn.end();
       };
 
@@ -66,9 +69,13 @@ export async function POST(req: Request) {
           timeout: { totalMs: RESPONSE_LIMITS.maxResponseMs },
           telemetry: { functionId: "chat-turn" },
           onEnd: ({ text, finishReason, steps }) =>
-            end(text, { finishReason, steps: steps.length }, finishReason === "length" ? "WARNING" : undefined),
-          onError: ({ error }) => end(String(error), undefined, "ERROR"),
-          onAbort: () => end("Stopped before the reply finished.", undefined, "WARNING"),
+            end(text, {
+              metadata: { finishReason, steps: steps.length },
+              ...(finishReason === "length" && { level: "WARNING", statusMessage: "Hit the output token cap." }),
+            }),
+          // The AI SDK's spans don't record a failed model call, so this is the only place the error shows up.
+          onError: ({ error }) => end(undefined, { level: "ERROR", statusMessage: String(error) }),
+          onAbort: () => end(undefined, { level: "WARNING", statusMessage: "Stopped before the reply finished." }),
         });
 
         // Runs once the response has finished streaming.
