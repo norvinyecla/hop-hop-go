@@ -36,7 +36,7 @@ async function rejection(req: Request, limits = CHAT_LIMITS): Promise<ChatReques
 
 describe("parseChatRequest", () => {
   it("accepts a conversation the UI would send", async () => {
-    const messages = await parseChatRequest(
+    const { messages } = await parseChatRequest(
       post({
         messages: [
           user("Central to Parramatta"),
@@ -50,17 +50,26 @@ describe("parseChatRequest", () => {
 
   it("accepts replies carrying the finish reason the server set", async () => {
     const reply = { ...assistant({ type: "text", text: "Take the T1 and" }), metadata: { finishReason: "length" } };
-    const messages = await parseChatRequest(post({ messages: [user("hi"), reply, user("go on", "u2")] }));
+    const { messages } = await parseChatRequest(post({ messages: [user("hi"), reply, user("go on", "u2")] }));
     expect(messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
     expect(JSON.stringify(messages)).not.toContain("finishReason");
   });
 
   it("drops tool calls that never finished", async () => {
     const unfinished = { ...resolved, toolCallId: "call-2", state: "input-available", output: undefined };
-    const messages = await parseChatRequest(
+    const { messages } = await parseChatRequest(
       post({ messages: [user("hi"), assistant(unfinished, { type: "text", text: "Sorry" }), user("again", "u2")] }),
     );
     expect(JSON.stringify(messages)).not.toContain("call-2");
+  });
+
+  it("returns the chat ID only when it looks like one", async () => {
+    const chatId = async (id: unknown) => (await parseChatRequest(post({ id, messages: [user("hi")] }))).chatId;
+    expect(await chatId("Xy7_k-9")).toBe("Xy7_k-9");
+    expect(await chatId(undefined)).toBeUndefined();
+    expect(await chatId(42)).toBeUndefined();
+    expect(await chatId("a b")).toBeUndefined();
+    expect(await chatId("x".repeat(101))).toBeUndefined();
   });
 
   it("rejects bodies that are not a message list", async () => {
