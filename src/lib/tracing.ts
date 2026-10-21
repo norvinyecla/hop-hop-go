@@ -16,12 +16,9 @@ const globalForTracing = globalThis as { langfuseSpanProcessor?: LangfuseSpanPro
  */
 export function registerTracing() {
   if (globalForTracing.langfuseSpanProcessor) return;
-  if (!process.env.LANGFUSE_PUBLIC_KEY || !process.env.LANGFUSE_SECRET_KEY) return;
+  if (!langfuseConfigured()) return;
 
-  const processor = new LangfuseSpanProcessor({
-    // Keeps local runs out of production dashboards when LANGFUSE_TRACING_ENVIRONMENT is unset.
-    environment: process.env.LANGFUSE_TRACING_ENVIRONMENT ?? process.env.NODE_ENV,
-  });
+  const processor = new LangfuseSpanProcessor({ environment: langfuseEnvironment() });
   new NodeTracerProvider({
     // Without a name, OpenTelemetry falls back to the node binary's path, which ends up in every observation's metadata.
     resource: resourceFromAttributes({ [ATTR_SERVICE_NAME]: "hop-hop-go" }),
@@ -34,4 +31,14 @@ export function registerTracing() {
 /** Exports buffered spans. Call from after() so a serverless instance doesn't freeze with spans unsent. */
 export async function flushTraces() {
   await globalForTracing.langfuseSpanProcessor?.forceFlush();
+}
+
+/** Whether LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY are both set. */
+export function langfuseConfigured(env: Record<string, string | undefined> = process.env): boolean {
+  return Boolean(env.LANGFUSE_PUBLIC_KEY && env.LANGFUSE_SECRET_KEY);
+}
+
+/** Traces and scores share it. Keeps local runs out of production dashboards when LANGFUSE_TRACING_ENVIRONMENT is unset. */
+export function langfuseEnvironment(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.LANGFUSE_TRACING_ENVIRONMENT || env.NODE_ENV;
 }

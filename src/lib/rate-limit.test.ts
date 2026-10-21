@@ -101,6 +101,17 @@ describe("windowsFromEnv", () => {
       { max: 100, ms: 86_400_000 },
     ]);
   });
+
+  it("reads another prefix with its own defaults", () => {
+    const defaults = { perMinute: 30, perDay: 300 };
+    expect(windowsFromEnv({ RATE_LIMIT_PER_MINUTE: "1" }, "FEEDBACK_RATE_LIMIT", defaults)).toEqual([
+      { max: 30, ms: 60_000 },
+      { max: 300, ms: 86_400_000 },
+    ]);
+    expect(windowsFromEnv({ FEEDBACK_RATE_LIMIT_PER_DAY: "0" }, "FEEDBACK_RATE_LIMIT", defaults)).toEqual([
+      { max: 30, ms: 60_000 },
+    ]);
+  });
 });
 
 describe("clientKey", () => {
@@ -139,5 +150,10 @@ describe("rateLimitMessage", () => {
     expect(rateLimitMessage(42)).toContain("about 42 seconds.");
     expect(rateLimitMessage(90)).toContain("about 2 minutes.");
     expect(rateLimitMessage(5000)).toContain("about 2 hours.");
+  });
+
+  it("names what the user was doing", () => {
+    expect(rateLimitMessage(1)).toMatch(/^You're sending messages too quickly/);
+    expect(rateLimitMessage(1, "rating replies")).toMatch(/^You're rating replies too quickly/);
   });
 });

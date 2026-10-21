@@ -5,8 +5,12 @@ import { resolveLocation } from "./resolve-location";
 
 export const tools = { resolveLocation, planTrip, getServiceAlerts };
 
-/** Set by /api/chat when a reply ends. For display only: clients send it back, so the server never reads it. */
-export type ChatMetadata = { finishReason?: FinishReason };
+/**
+ * Set by /api/chat: traceId and feedbackToken when a reply starts (only when feedback is set up),
+ * finishReason when it ends. /api/chat never reads what clients send back; /api/feedback
+ * checks the token before trusting the trace ID.
+ */
+export type ChatMetadata = { traceId?: string; feedbackToken?: string; finishReason?: FinishReason };
 
 /** A chat message whose tool parts are typed from the tools above. */
 export type ChatMessage = UIMessage<ChatMetadata, UIDataTypes, InferUITools<typeof tools>>;

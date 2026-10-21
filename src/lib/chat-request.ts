@@ -1,5 +1,6 @@
 import { convertToModelMessages, safeValidateUIMessages, type ModelMessage } from "ai";
 import { CHAT_LIMITS } from "@/lib/chat-limits";
+import { JsonBodyError, readJson } from "@/lib/read-json";
 import { tools, type ChatMessage } from "@/lib/tools";
 
 /** A request /api/chat refuses. The message is shown to the user. */
@@ -38,7 +39,7 @@ export async function parseChatRequest(
   req: Request,
   limits = CHAT_LIMITS,
 ): Promise<ChatRequest> {
-  const body = (await readJson(req, limits.maxBodyBytes)) as { id?: unknown; messages?: unknown } | null;
+  const body = (await readBody(req, limits.maxBodyBytes)) as { id?: unknown; messages?: unknown } | null;
   const raw = body?.messages;
   if (!Array.isArray(raw) || raw.length === 0) throw new ChatRequestError(INVALID, 400);
   if (raw.length > limits.maxMessages) throw new ChatRequestError(TOO_LONG, 413);
@@ -67,33 +68,13 @@ export async function parseChatRequest(
   return { chatId, messages: modelMessages };
 }
 
-/** Parses the body as JSON, reading no more than maxBytes. */
-async function readJson(req: Request, maxBytes: number): Promise<unknown> {
-  const declared = Number(req.headers.get("content-length"));
-  if (declared > maxBytes) throw new ChatRequestError(TOO_LONG, 413);
-  if (!req.body) throw new ChatRequestError(INVALID, 400);
-
-  // Content-Length may be missing or wrong, so count while reading.
-  const reader = req.body.getReader();
-  const decoder = new TextDecoder();
-  let text = "";
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > maxBytes) {
-      await reader.cancel();
-      throw new ChatRequestError(TOO_LONG, 413);
-    }
-    text += decoder.decode(value, { stream: true });
-  }
-  text += decoder.decode();
-
+/** readJson, with the errors this route shows the user. */
+async function readBody(req: Request, maxBytes: number): Promise<unknown> {
   try {
-    return JSON.parse(text);
-  } catch {
-    throw new ChatRequestError(INVALID, 400);
+    return await readJson(req, maxBytes);
+  } catch (error) {
+    if (!(error instanceof JsonBodyError)) throw error;
+    throw error.status === 413 ? new ChatRequestError(TOO_LONG, 413) : new ChatRequestError(INVALID, 400);
   }
 }
 
