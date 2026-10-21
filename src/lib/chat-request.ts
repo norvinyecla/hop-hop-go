@@ -19,6 +19,15 @@ const INVALID = "That request wasn't understood. Please reload the page and try 
 const ASSISTANT_PART_TYPES = new Set(["text", "reasoning", "step-start"]);
 const TOOL_PART_TYPES = new Set(Object.keys(tools).map((name) => `tool-${name}`));
 
+/** A chat request /api/chat accepted. */
+export type ChatRequest = {
+  /** The client's conversation ID, or undefined if missing or malformed. Not trusted: use it only to group traces. */
+  chatId?: string;
+  messages: ModelMessage[];
+};
+
+const CHAT_ID = /^[\w-]{1,100}$/;
+
 /**
  * Reads the chat history a client sent and returns it as model messages. The client is
  * not trusted: the history must be small, match the tool schemas, and contain only what
@@ -28,9 +37,9 @@ const TOOL_PART_TYPES = new Set(Object.keys(tools).map((name) => `tool-${name}`)
 export async function parseChatRequest(
   req: Request,
   limits = CHAT_LIMITS,
-): Promise<ModelMessage[]> {
-  const body = await readJson(req, limits.maxBodyBytes);
-  const raw = (body as { messages?: unknown } | null)?.messages;
+): Promise<ChatRequest> {
+  const body = (await readJson(req, limits.maxBodyBytes)) as { id?: unknown; messages?: unknown } | null;
+  const raw = body?.messages;
   if (!Array.isArray(raw) || raw.length === 0) throw new ChatRequestError(INVALID, 400);
   if (raw.length > limits.maxMessages) throw new ChatRequestError(TOO_LONG, 413);
 
@@ -54,7 +63,8 @@ export async function parseChatRequest(
   if (JSON.stringify(modelMessages).length > limits.maxModelChars) {
     throw new ChatRequestError(TOO_LONG, 413);
   }
-  return modelMessages;
+  const chatId = typeof body?.id === "string" && CHAT_ID.test(body.id) ? body.id : undefined;
+  return { chatId, messages: modelMessages };
 }
 
 /** Parses the body as JSON, reading no more than maxBytes. */

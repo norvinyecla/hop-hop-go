@@ -139,14 +139,15 @@ function AssistantMessage({ message, active }: { message: ChatMessage; active: b
           ))}
         </div>
       )}
+      {trips.map((trip) => (
+        <RouteOptions key={trip.id} journeys={trip.journeys} when={trip.when} avoid={trip.avoid} />
+      ))}
+      {/* After the cards, so the recommendation reads as a comment on the options above it. */}
       {text && (
         <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-black/5 px-4 py-2 dark:bg-white/10">
           {text}
         </div>
       )}
-      {trips.map((trip) => (
-        <RouteOptions key={trip.id} journeys={trip.journeys} when={trip.when} avoid={trip.avoid} />
-      ))}
       {message.metadata?.finishReason === "length" && (
         <p className="text-sm opacity-60">This reply was cut short.</p>
       )}
