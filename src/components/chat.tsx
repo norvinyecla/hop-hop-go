@@ -126,7 +126,7 @@ function AssistantMessage({ message, active }: { message: ChatMessage; active: b
   );
   const trips = message.parts.flatMap((part) =>
     part.type === "tool-planTrip" && part.state === "output-available" && part.output.journeys.length > 0
-      ? [{ id: part.toolCallId, journeys: part.output.journeys, when: part.output.when }]
+      ? [{ id: part.toolCallId, journeys: part.output.journeys, when: part.output.when, avoid: part.output.avoid }]
       : [],
   );
 
@@ -145,7 +145,7 @@ function AssistantMessage({ message, active }: { message: ChatMessage; active: b
         </div>
       )}
       {trips.map((trip) => (
-        <RouteOptions key={trip.id} journeys={trip.journeys} when={trip.when} />
+        <RouteOptions key={trip.id} journeys={trip.journeys} when={trip.when} avoid={trip.avoid} />
       ))}
       {message.metadata?.finishReason === "length" && (
         <p className="text-sm opacity-60">This reply was cut short.</p>

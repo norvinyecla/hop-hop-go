@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+import { avoidLabel, type AvoidableMode } from "@/lib/avoid";
 import { legColor } from "@/lib/lines";
 import { walkMeters } from "@/lib/rank";
 import { dayLabel, fromSydney, toSydney } from "@/lib/sydney-time";
@@ -193,7 +194,15 @@ function scrollToCard(track: HTMLElement, i: number, behavior: ScrollBehavior) {
   track.scrollTo({ left: cardLeft(track, card) - padding, behavior });
 }
 
-export function RouteOptions({ journeys, when }: { journeys: Journey[]; when?: TripTime }) {
+export function RouteOptions({
+  journeys,
+  when,
+  avoid,
+}: {
+  journeys: Journey[];
+  when?: TripTime;
+  avoid?: AvoidableMode[];
+}) {
   const [selected, setSelected] = useState(0);
   const track = useRef<HTMLOListElement>(null);
   const settle = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -273,12 +282,13 @@ export function RouteOptions({ journeys, when }: { journeys: Journey[]; when?: T
   }
 
   const journey = journeys[selected];
+  const search = [when && searchLabel(when), avoid && `Avoiding ${avoidLabel(avoid)}`].filter(Boolean);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-black/10 dark:border-white/15">
       <RouteMap journeys={journeys} selected={selected} />
 
-      {when && <p className="px-4 pt-3 text-xs font-medium opacity-70">{searchLabel(when)}</p>}
+      {search.length > 0 && <p className="px-4 pt-3 text-xs font-medium opacity-70">{search.join(" · ")}</p>}
 
       <ol
         ref={track}

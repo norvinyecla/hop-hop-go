@@ -1,10 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { AVOIDABLE_MODES, avoidLabel, normalizeAvoid } from "@/lib/avoid";
 import { PREFERENCES, rankJourneys } from "@/lib/rank";
 import { fromSydney } from "@/lib/sydney-time";
 import { findTrips } from "@/lib/tfnsw/trip";
 
 const MAX_JOURNEYS = 3;
+
+// At least one mode has to stay in.
+const avoidSchema = z.array(z.enum(AVOIDABLE_MODES)).min(1).max(AVOIDABLE_MODES.length - 1);
 
 // A plain pattern rather than z.iso.date(): some providers reject JSON Schema's "format: date".
 const sydneyDateSchema = z
@@ -58,7 +62,8 @@ export const planTrip = tool({
     "Leaves now unless `when` is given. Both IDs must come from resolveLocation. " +
     "Returns up to 3 journeys ranked best first, with times in Sydney local time (HH:mm). " +
     "Legs may list alerts: trackwork or service changes on that line or at its stations while the leg runs. " +
-    "Bus legs only list alerts TfNSW attaches to the trip itself.",
+    "Bus legs only list alerts TfNSW attaches to the trip itself. " +
+    "Pass `avoid` to leave modes out.",
   inputSchema: z.object({
     originId: z.string().min(1).describe("The id of the starting location, from resolveLocation"),
     destinationId: z.string().min(1).describe("The id of the destination location, from resolveLocation"),
@@ -79,38 +84,48 @@ export const planTrip = tool({
       })
       .optional()
       .describe("Only when the user gives a time to leave or arrive. Omit to leave now."),
+    avoid: avoidSchema
+      .optional()
+      .describe(
+        "Modes to leave out, only when the user asks not to use them. 'train' also leaves out Sydney Metro. " +
+          "At least one mode must stay in. Omit to allow every mode.",
+      ),
   }),
   // Lets validateUIMessages reject malformed results in the history a client sends back.
   outputSchema: z.strictObject({
     when: z
       .strictObject({ type: z.enum(["depart", "arrive"]), date: sydneyDateSchema, time: sydneyTimeSchema })
       .optional(),
+    avoid: avoidSchema.optional(),
     journeys: z.array(journeySchema).max(MAX_JOURNEYS),
     message: z.string().optional(),
     error: z.string().optional(),
   }),
-  execute: async ({ originId, destinationId, preference, when }, { abortSignal }) => {
+  execute: async ({ originId, destinationId, preference, when, avoid: requested }, { abortSignal }) => {
+    // Echoed back so the UI can show it and the model can keep it for later trips in the chat.
+    const avoid = normalizeAvoid(requested);
     if (when && fromSydney(when).getTime() < Date.now() - PAST_GRACE_MS) {
-      return { when, journeys: [], error: "That time has already passed." };
+      return { when, avoid, journeys: [], error: "That time has already passed." };
     }
     try {
-      const journeys = rankJourneys(await findTrips(originId, destinationId, when, abortSignal), preference).slice(
-        0,
-        MAX_JOURNEYS,
-      );
+      const found = await findTrips(originId, destinationId, { when, avoid }, abortSignal);
+      const journeys = rankJourneys(found, preference).slice(0, MAX_JOURNEYS);
       if (journeys.length === 0) {
         return {
           when,
+          avoid,
           journeys,
-          message: "No train, metro, light rail or bus journey was found between these locations.",
+          message: avoid
+            ? `No journey avoiding ${avoidLabel(avoid)} was found between these locations.`
+            : "No train, metro, light rail or bus journey was found between these locations.",
         };
       }
-      return { when, journeys };
+      return { when, avoid, journeys };
     } catch (error) {
       // The client left; nobody will see the result.
       if (abortSignal?.aborted) throw error;
       console.error("planTrip failed", error);
-      return { when, journeys: [], error: "Trip planning is unavailable right now." };
+      return { when, avoid, journeys: [], error: "Trip planning is unavailable right now." };
     }
   },
   // Map paths are for the UI only; they would cost the model thousands of tokens.

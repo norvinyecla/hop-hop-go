@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AvoidableMode } from "@/lib/avoid";
 import { simplifyPath, type LngLat } from "@/lib/geo";
 import { dayLabel, fromSydney, toSydney, type SydneyDateTime } from "@/lib/sydney-time";
 import { alertsForLeg, fetchAlerts, lineKey, toAlert, toLegAlerts, type LegAlert, type ServiceAlert } from "./alerts";
@@ -7,6 +8,13 @@ import { tfnswGet } from "./client";
 // TfNSW product classes we ask the trip planner to leave out:
 // 7 coach, 9 ferry, 11 school bus.
 const EXCLUDED_MODES = [7, 9, 11];
+
+// The product classes behind each mode a user can avoid. Train and metro go together.
+const AVOIDABLE_CLASSES: Record<AvoidableMode, number[]> = {
+  train: [1, 2],
+  "light rail": [4],
+  bus: [5],
+};
 
 const MODE_NAMES: Record<number, string> = {
   1: "train",
@@ -118,6 +126,47 @@ export type Journey = {
   legs: Leg[];
 };
 
+export type TripOptions = {
+  /** Leave at or arrive by this time. Leaves now when not set. */
+  when?: TripTime;
+  /** Modes to leave out, on top of coach, ferry and school bus. */
+  avoid?: readonly AvoidableMode[];
+  /** How many journeys to ask TfNSW for. */
+  count?: number;
+};
+
+/** The trip API's query parameters for a search. */
+export function tripParams(
+  originId: string,
+  destinationId: string,
+  { when, avoid = [], count = 6 }: TripOptions = {},
+): Record<string, string> {
+  const params: Record<string, string> = {
+    depArrMacro: when?.type === "arrive" ? "arr" : "dep",
+    type_origin: "any",
+    name_origin: originId,
+    type_destination: "any",
+    name_destination: destinationId,
+    calcNumberOfTrips: String(count),
+    TfNSWTR: "true",
+    excludedMeans: "checkbox",
+  };
+  if (when) {
+    params.itdDate = when.date.replaceAll("-", "");
+    params.itdTime = when.time.replace(":", "");
+  }
+  for (const mode of [...EXCLUDED_MODES, ...avoid.flatMap((name) => AVOIDABLE_CLASSES[name])]) {
+    params[`exclMOT_${mode}`] = "1";
+  }
+  return params;
+}
+
+/** Whether a journey has no leg in an avoided mode. */
+export function avoidsModes(journey: Journey, avoid: readonly AvoidableMode[]): boolean {
+  const modes = new Set(avoid.flatMap((name) => AVOIDABLE_CLASSES[name].map((c) => MODE_NAMES[c])));
+  return journey.legs.every((leg) => !modes.has(leg.mode));
+}
+
 function toSydneyTime(iso: string): string {
   return toSydney(new Date(iso)).time;
 }
@@ -161,41 +210,26 @@ async function fetchAlertsOrNone(): Promise<ServiceAlert[]> {
 
 /**
  * Finds journeys between two TfNSW location IDs (from findLocations), leaving now or at/by
- * `when`, using trains, metro, light rail, buses and walking only. Journeys keep TfNSW's order.
+ * `when`, using trains, metro, light rail, buses and walking only, minus any modes in `avoid`.
+ * Journeys keep TfNSW's order.
  */
 export async function findTrips(
   originId: string,
   destinationId: string,
-  when?: TripTime,
+  options: TripOptions = {},
   signal?: AbortSignal,
-  count = 6,
 ): Promise<Journey[]> {
+  const { when, avoid = [] } = options;
   const now = new Date();
   const requestedAt = (when ? fromSydney(when) : now).toISOString();
   const today = toSydney(now).date;
-  const params: Record<string, string> = {
-    depArrMacro: when?.type === "arrive" ? "arr" : "dep",
-    type_origin: "any",
-    name_origin: originId,
-    type_destination: "any",
-    name_destination: destinationId,
-    calcNumberOfTrips: String(count),
-    TfNSWTR: "true",
-    excludedMeans: "checkbox",
-  };
-  if (when) {
-    params.itdDate = when.date.replaceAll("-", "");
-    params.itdTime = when.time.replace(":", "");
-  }
-  for (const mode of EXCLUDED_MODES) {
-    params[`exclMOT_${mode}`] = "1";
-  }
+  const params = tripParams(originId, destinationId, options);
 
   // Alerts are shared between requests (see fetchAlerts), so one client leaving mustn't cancel them.
   const [data, alerts] = await Promise.all([tfnswGet("trip", params, signal), fetchAlertsOrNone()]);
   const { journeys } = tripResponseSchema.parse(data);
 
-  return journeys.map((journey) => {
+  const found = journeys.map((journey): Journey => {
     const legs = journey.legs.map((leg): Leg => {
       const productClass = leg.transportation?.product?.class;
       const mode =
@@ -266,4 +300,6 @@ export async function findTrips(
       legs,
     };
   });
+  // The exclMOT flags should already leave these out; this keeps the promise if TfNSW slips one through.
+  return found.filter((journey) => avoidsModes(journey, avoid));
 }
