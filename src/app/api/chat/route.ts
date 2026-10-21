@@ -14,6 +14,10 @@ import {
 import { tools, type ChatMessage } from "@/lib/tools";
 import { flushTraces } from "@/lib/tracing";
 
+// Seconds. Above RESPONSE_LIMITS.maxResponseMs so onAbort and the trace flush in after() still run
+// when a reply times out. Must be a literal, so keep it in step with that limit by hand.
+export const maxDuration = 90;
+
 export async function POST(req: Request) {
   // Check before reading the body so blocked requests cost nothing.
   const rateLimit = await chatRateLimiter.limit(clientKey(req));
