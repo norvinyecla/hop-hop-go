@@ -56,40 +56,46 @@ export async function POST(req: Request) {
         turn.end();
       };
 
-      return propagateAttributes({ traceName: "chat-turn", sessionId: chatId }, () => {
-        const result = streamText({
-          model: getModel(),
-          instructions: instructions(),
-          messages,
-          tools,
-          stopWhen: isStepCount(5),
-          maxOutputTokens: RESPONSE_LIMITS.maxOutputTokens,
-          // Stops the model and any running tools when the client disconnects.
-          abortSignal: req.signal,
-          timeout: { totalMs: RESPONSE_LIMITS.maxResponseMs },
-          telemetry: { functionId: "chat-turn" },
-          onEnd: ({ text, finishReason, steps }) =>
-            end(text, {
-              metadata: { finishReason, steps: steps.length },
-              ...(finishReason === "length" && { level: "WARNING", statusMessage: "Hit the output token cap." }),
+      // Runs once the response has finished streaming, or failed.
+      after(flushTraces);
+
+      try {
+        return propagateAttributes({ traceName: "chat-turn", sessionId: chatId }, () => {
+          const result = streamText({
+            model: getModel(),
+            instructions: instructions(),
+            messages,
+            tools,
+            stopWhen: isStepCount(5),
+            maxOutputTokens: RESPONSE_LIMITS.maxOutputTokens,
+            // Stops the model and any running tools when the client disconnects.
+            abortSignal: req.signal,
+            timeout: { totalMs: RESPONSE_LIMITS.maxResponseMs },
+            telemetry: { functionId: "chat-turn" },
+            onEnd: ({ text, finishReason, steps }) =>
+              end(text, {
+                metadata: { finishReason, steps: steps.length },
+                ...(finishReason === "length" && { level: "WARNING", statusMessage: "Hit the output token cap." }),
+              }),
+            // The AI SDK's spans don't record a failed model call, so this is the only place the error shows up.
+            onError: ({ error }) => end(undefined, { level: "ERROR", statusMessage: String(error) }),
+            onAbort: () => end(undefined, { level: "WARNING", statusMessage: "Stopped before the reply finished." }),
+          });
+
+          return createUIMessageStreamResponse({
+            stream: toUIMessageStream<typeof tools, ChatMessage>({
+              stream: result.stream,
+              // The last finish part carries the final step's reason, so the UI can say when a reply hit the cap.
+              messageMetadata: ({ part }) => (part.type === "finish" ? { finishReason: part.finishReason } : undefined),
             }),
-          // The AI SDK's spans don't record a failed model call, so this is the only place the error shows up.
-          onError: ({ error }) => end(undefined, { level: "ERROR", statusMessage: String(error) }),
-          onAbort: () => end(undefined, { level: "WARNING", statusMessage: "Stopped before the reply finished." }),
+            headers,
+          });
         });
-
-        // Runs once the response has finished streaming.
-        after(flushTraces);
-
-        return createUIMessageStreamResponse({
-          stream: toUIMessageStream<typeof tools, ChatMessage>({
-            stream: result.stream,
-            // The last finish part carries the final step's reason, so the UI can say when a reply hit the cap.
-            messageMetadata: ({ part }) => (part.type === "finish" ? { finishReason: part.finishReason } : undefined),
-          }),
-          headers,
-        });
-      });
+      } catch (error) {
+        // Thrown before streaming started, e.g. a missing LLM_API_KEY. The stream callbacks never run.
+        end(undefined, { level: "ERROR", statusMessage: String(error) });
+        throw error;
+      }
     },
     { endOnExit: false },
   );
