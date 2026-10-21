@@ -9,11 +9,12 @@ import { tfnswGet } from "./client";
 // 7 coach, 9 ferry, 11 school bus.
 const EXCLUDED_MODES = [7, 9, 11];
 
-// The product classes behind each mode a user can avoid. Train and metro go together.
-const AVOIDABLE_CLASSES: Record<AvoidableMode, number[]> = {
-  train: [1, 2],
-  "light rail": [4],
-  bus: [5],
+// The product class behind each mode a user can avoid.
+const AVOIDABLE_CLASSES: Record<AvoidableMode, number> = {
+  train: 1,
+  metro: 2,
+  "light rail": 4,
+  bus: 5,
 };
 
 const MODE_NAMES: Record<number, string> = {
@@ -155,7 +156,7 @@ export function tripParams(
     params.itdDate = when.date.replaceAll("-", "");
     params.itdTime = when.time.replace(":", "");
   }
-  for (const mode of [...EXCLUDED_MODES, ...avoid.flatMap((name) => AVOIDABLE_CLASSES[name])]) {
+  for (const mode of [...EXCLUDED_MODES, ...avoid.map((name) => AVOIDABLE_CLASSES[name])]) {
     params[`exclMOT_${mode}`] = "1";
   }
   return params;
@@ -163,7 +164,7 @@ export function tripParams(
 
 /** Whether a journey has no leg in an avoided mode. */
 export function avoidsModes(journey: Journey, avoid: readonly AvoidableMode[]): boolean {
-  const modes = new Set(avoid.flatMap((name) => AVOIDABLE_CLASSES[name].map((c) => MODE_NAMES[c])));
+  const modes = new Set(avoid.map((name) => MODE_NAMES[AVOIDABLE_CLASSES[name]]));
   return journey.legs.every((leg) => !modes.has(leg.mode));
 }
 

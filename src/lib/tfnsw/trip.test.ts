@@ -21,8 +21,9 @@ describe("tripParams", () => {
     expect(excluded(tripParams("a", "b"))).toEqual([7, 9, 11]);
   });
 
-  it("leaves out train and metro together", () => {
-    expect(excluded(tripParams("a", "b", { avoid: ["train"] }))).toEqual([1, 2, 7, 9, 11]);
+  it("leaves out train and metro separately", () => {
+    expect(excluded(tripParams("a", "b", { avoid: ["train"] }))).toEqual([1, 7, 9, 11]);
+    expect(excluded(tripParams("a", "b", { avoid: ["metro"] }))).toEqual([2, 7, 9, 11]);
   });
 
   it("leaves out light rail and bus", () => {
@@ -36,10 +37,11 @@ describe("tripParams", () => {
 });
 
 describe("avoidsModes", () => {
-  it("treats metro as a train", () => {
-    expect(avoidsModes(journey("walk", "metro"), ["train"])).toBe(false);
+  it("tells train and metro apart", () => {
+    expect(avoidsModes(journey("walk", "metro"), ["train"])).toBe(true);
+    expect(avoidsModes(journey("walk", "metro"), ["metro"])).toBe(false);
+    expect(avoidsModes(journey("train"), ["metro"])).toBe(true);
     expect(avoidsModes(journey("train"), ["train"])).toBe(false);
-    expect(avoidsModes(journey("walk", "bus", "light rail"), ["train"])).toBe(true);
   });
 
   it("checks every leg", () => {

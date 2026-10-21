@@ -87,7 +87,8 @@ export const planTrip = tool({
     avoid: avoidSchema
       .optional()
       .describe(
-        "Modes to leave out, only when the user asks not to use them. 'train' also leaves out Sydney Metro. " +
+        "Modes to leave out, only when the user asks not to use them. 'train' is Sydney Trains and NSW TrainLink; " +
+          "'metro' is Sydney Metro. " +
           "At least one mode must stay in. Omit to allow every mode.",
       ),
   }),

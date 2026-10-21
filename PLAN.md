@@ -45,7 +45,7 @@ The weights can change based on what the user says in the conversation, e.g. "fe
 
 ### Trip API usage
 - Restrict modes to train, metro, light rail, bus and walking. Exclude ferry, coach, school bus and on-demand.
-- Users can ask to leave out a mode ("no buses", "trains only"). The model passes it as planTrip's `avoid`: `train`, `light rail` or `bus`, with at least one left in. Train and metro are one mode here, so avoiding `train` sets `exclMOT_1` and `exclMOT_2`; leg cards still show them apart. Journeys that still use an avoided mode are dropped, the exclusion carries over to later trips in the chat, and when nothing is found the model offers to search with every mode instead of retrying on its own. Walking can't be left out; `least-walking` covers that.
+- Users can ask to leave out a mode ("no buses", "trains only"). The model passes it as planTrip's `avoid`: `train`, `metro`, `light rail` or `bus`, with at least one left in. Each sets its own `exclMOT_<class>` flag (1, 2, 4 and 5), so avoiding the metro still allows Sydney Trains and the other way round. Journeys that still use an avoided mode are dropped, the exclusion carries over to later trips in the chat, and when nothing is found the model offers to search with every mode instead of retrying on its own. Walking can't be left out; `least-walking` covers that.
 - `depArrMacro=dep|arr` for "leave at" vs "arrive by"
 - `TfNSWTR=true` for real-time data, `coordOutputFormat=EPSG:4326` for map coordinates
 - Auth header: `Authorization: apikey <TFNSW_API_KEY>`
