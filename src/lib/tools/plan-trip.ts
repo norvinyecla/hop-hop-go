@@ -56,6 +56,10 @@ const journeySchema = z.strictObject({
 /** How far in the past a requested time may be, so "leave at 9:00" still works at 9:03. */
 const PAST_GRACE_MS = 15 * 60_000;
 
+// Exported so tool-signals can tell a bad request from an outage.
+export const PAST_TIME_ERROR = "That time has already passed.";
+export const PLAN_TRIP_UNAVAILABLE = "Trip planning is unavailable right now.";
+
 export const planTrip = tool({
   description:
     "Find journeys between two locations, using trains, Sydney Metro, light rail, buses and walking. " +
@@ -106,7 +110,7 @@ export const planTrip = tool({
     // Echoed back so the UI can show it and the model can keep it for later trips in the chat.
     const avoid = normalizeAvoid(requested);
     if (when && fromSydney(when).getTime() < Date.now() - PAST_GRACE_MS) {
-      return { when, avoid, journeys: [], error: "That time has already passed." };
+      return { when, avoid, journeys: [], error: PAST_TIME_ERROR };
     }
     try {
       const found = await findTrips(originId, destinationId, { when, avoid }, abortSignal);
@@ -126,7 +130,7 @@ export const planTrip = tool({
       // The client left; nobody will see the result.
       if (abortSignal?.aborted) throw error;
       console.error("planTrip failed", error);
-      return { when, avoid, journeys: [], error: "Trip planning is unavailable right now." };
+      return { when, avoid, journeys: [], error: PLAN_TRIP_UNAVAILABLE };
     }
   },
   // Map paths are for the UI only; they would cost the model thousands of tokens.

@@ -1,12 +1,10 @@
-import { LangfuseClient } from "@langfuse/client";
 import type { FeedbackRequest } from "@/lib/feedback-request";
 import { feedbackKey } from "@/lib/feedback-token";
+import { createScores, langfuse, scoreId, type CreateScore } from "@/lib/scores";
 import { langfuseConfigured, langfuseEnvironment } from "@/lib/tracing";
 
 export const REPLY_RATING = "reply_rating";
 export const REPLY_RATING_REASON = "reply_rating_reason";
-
-type CreateScore = Parameters<LangfuseClient["api"]["scores"]["create"]>[0][number];
 
 export type FeedbackConfig = {
   /** Signs and checks feedback tokens. */
@@ -32,9 +30,6 @@ export function feedbackConfig(env: Record<string, string | undefined> = process
     environment: langfuseEnvironment(env),
   };
 }
-
-/** One score of each name per trace, so a re-rating replaces the score instead of adding one. */
-export const scoreId = (name: string, traceId: string) => `${name}-${traceId}`;
 
 export type ScoreChanges = { create: CreateScore[]; delete: string[] };
 
@@ -79,30 +74,16 @@ export function buildScoreChanges(feedback: FeedbackRequest, issuedAt: number, c
   return { create, delete: reason ? [] : [reasonId] };
 }
 
-let client: LangfuseClient | undefined;
-
-/** Reads LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY and LANGFUSE_BASE_URL. */
-function langfuse(): LangfuseClient {
-  return (client ??= new LangfuseClient());
-}
-
 /**
  * Sends the changes and waits for Langfuse to accept them, so a failure reaches the client
  * and a later clear can't overtake an earlier rating. Uses the REST API directly rather than
  * the batching score queue, so there's nothing left to flush when the response ends.
  */
 export async function applyScoreChanges(changes: ScoreChanges): Promise<void> {
-  const { api } = langfuse();
   await Promise.all([
-    changes.create.length > 0 &&
-      api.scores.create(changes.create).then((result) => {
-        // 202 is { message: "Accepted" }; 207 lists the scores that were rejected, e.g. by a score config.
-        if ("rejected" in result && result.rejected > 0) {
-          throw new Error(`Langfuse rejected ${result.rejected} score(s): ${JSON.stringify(result.errors)}`);
-        }
-      }),
+    createScores(changes.create),
     ...changes.delete.map((id) =>
-      api.scores.delete(id).catch((error: unknown) => {
+      langfuse().api.scores.delete(id).catch((error: unknown) => {
         // Nothing to clear, e.g. no reason was picked.
         if ((error as { statusCode?: number }).statusCode !== 404) throw error;
       }),

@@ -2,6 +2,9 @@ import { tool } from "ai";
 import { z } from "zod";
 import { findLocations } from "@/lib/tfnsw/stop-finder";
 
+// Exported so tool-signals can recognise an outage.
+export const RESOLVE_LOCATION_UNAVAILABLE = "Location lookup is unavailable right now.";
+
 export const resolveLocation = tool({
   description:
     "Turn a place name, stop, landmark or address into matching locations from Transport for NSW. " +
@@ -39,7 +42,7 @@ export const resolveLocation = tool({
       // The client left; nobody will see the result.
       if (abortSignal?.aborted) throw error;
       console.error("resolveLocation failed", error);
-      return { query, candidates: [], error: "Location lookup is unavailable right now." };
+      return { query, candidates: [], error: RESOLVE_LOCATION_UNAVAILABLE };
     }
   },
 });
