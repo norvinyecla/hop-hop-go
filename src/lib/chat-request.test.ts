@@ -55,6 +55,28 @@ describe("parseChatRequest", () => {
     expect(JSON.stringify(messages)).not.toContain("finishReason");
   });
 
+  it("keeps the text of earlier replies, which the UI marks as done", async () => {
+    const reply = assistant({ type: "step-start" }, resolved, { type: "text", text: "Which Central?", state: "done" });
+    const { messages } = await parseChatRequest(post({ messages: [user("hi"), reply, user("Sydney", "u2")] }));
+    expect(JSON.stringify(messages)).toContain("Which Central?");
+  });
+
+  it("returns the trace ID and token sent with the previous reply", async () => {
+    const reply = (metadata: unknown) => ({ ...assistant({ type: "text", text: "Hello" }), metadata });
+    const previous = async (...messages: unknown[]) => (await parseChatRequest(post({ messages }))).previousReply;
+
+    expect(await previous(user("hi"), reply({ traceId: "t1", feedbackToken: "v1.1.x" }), user("ok", "u2"))).toEqual({
+      traceId: "t1",
+      feedbackToken: "v1.1.x",
+    });
+    expect(await previous(user("hi"))).toBeUndefined();
+    expect(await previous(user("hi"), reply({ traceId: "t1" }), user("ok", "u2"))).toBeUndefined();
+    expect(await previous(user("hi"), reply({ traceId: 1, feedbackToken: "x" }), user("ok", "u2"))).toBeUndefined();
+    // Only the reply right before the latest message counts.
+    const old = reply({ traceId: "t1", feedbackToken: "v1.1.x" });
+    expect(await previous(user("hi"), old, user("ok", "u2"), user("hello?", "u3"))).toBeUndefined();
+  });
+
   it("drops tool calls that never finished", async () => {
     const unfinished = { ...resolved, toolCallId: "call-2", state: "input-available", output: undefined };
     const { messages } = await parseChatRequest(
