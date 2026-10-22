@@ -55,6 +55,12 @@ describe("parseChatRequest", () => {
     expect(JSON.stringify(messages)).not.toContain("finishReason");
   });
 
+  it("keeps the text of earlier replies, which the UI marks as done", async () => {
+    const reply = assistant({ type: "step-start" }, resolved, { type: "text", text: "Which Central?", state: "done" });
+    const { messages } = await parseChatRequest(post({ messages: [user("hi"), reply, user("Sydney", "u2")] }));
+    expect(JSON.stringify(messages)).toContain("Which Central?");
+  });
+
   it("drops tool calls that never finished", async () => {
     const unfinished = { ...resolved, toolCallId: "call-2", state: "input-available", output: undefined };
     const { messages } = await parseChatRequest(

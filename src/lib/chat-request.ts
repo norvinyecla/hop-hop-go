@@ -78,8 +78,10 @@ async function readBody(req: Request, maxBytes: number): Promise<unknown> {
   }
 }
 
+// Only tool parts: text and reasoning parts carry a state too ("done"), and must be kept.
 const isFinished = (part: ChatMessage["parts"][number]) =>
-  !("state" in part) || part.state === "output-available" || part.state === "output-error";
+  !TOOL_PART_TYPES.has(part.type) ||
+  ("state" in part && (part.state === "output-available" || part.state === "output-error"));
 
 /** A reply that failed mid-call leaves calls without results; they would only confuse the model. */
 function dropUnfinishedToolCalls(message: ChatMessage): ChatMessage {
