@@ -81,6 +81,8 @@ async function runCase(evalCase: EvalCase): Promise<CaseOutput> {
       tools,
       stopWhen: isStepCount(RESPONSE_LIMITS.maxSteps),
       maxOutputTokens: RESPONSE_LIMITS.maxOutputTokens,
+      // Without it, a stalled model call hangs the whole run instead of failing its case.
+      timeout: { totalMs: RESPONSE_LIMITS.maxResponseMs },
       telemetry: { functionId: "chat-eval" },
     });
     await save?.();
