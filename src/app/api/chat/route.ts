@@ -13,8 +13,10 @@ import {
   rateLimitHeaders,
   rateLimitMessage,
 } from "@/lib/rate-limit";
+import { createScores } from "@/lib/scores";
+import { buildToolSignalScores, toolCallSignal, type ToolPart } from "@/lib/tool-signals";
 import { tools, type ChatMessage } from "@/lib/tools";
-import { flushTraces } from "@/lib/tracing";
+import { flushTraces, langfuseConfigured, langfuseEnvironment } from "@/lib/tracing";
 import { messageText, turnContext } from "@/lib/turn-context";
 
 // Seconds. Above RESPONSE_LIMITS.maxResponseMs so onAbort and the trace flush in after() still run
@@ -63,19 +65,37 @@ export async function POST(req: Request) {
         input: lastUserText(messages),
         metadata: { turn: context.turn, previousTurn: context.previousTurn },
       });
+      const startedAt = new Date().toISOString();
+      // Tool calls from finished steps, scored once the turn ends however it ends.
+      const toolParts: ToolPart[] = [];
+      let toolSignals: Promise<void> | undefined;
       let ended = false;
       const end = (
         output: unknown,
-        { metadata, level, statusMessage }: { metadata?: Record<string, unknown>; level?: "WARNING" | "ERROR"; statusMessage?: string } = {},
+        {
+          metadata,
+          level,
+          statusMessage,
+          aborted = false,
+        }: { metadata?: Record<string, unknown>; level?: "WARNING" | "ERROR"; statusMessage?: string; aborted?: boolean } = {},
       ) => {
         if (ended) return;
         ended = true;
         turn.update({ output, metadata, level, statusMessage });
         turn.end();
+        if (!langfuseConfigured()) return;
+        // A tool stopped by the client leaves an error that isn't the tool's fault.
+        const parts = aborted ? toolParts.filter((part) => part.type !== "tool-error") : toolParts;
+        const scores = buildToolSignalScores(parts.map(toolCallSignal), {
+          traceId: turn.traceId,
+          timestamp: startedAt,
+          environment: langfuseEnvironment(),
+        });
+        toolSignals = createScores(scores).catch((error: unknown) => console.error("Couldn't save tool signals:", error));
       };
 
       // Runs once the response has finished streaming, or failed.
-      after(flushTraces);
+      after(() => Promise.all([flushTraces(), toolSignals]));
 
       try {
         return propagateAttributes({ traceName: "chat-turn", sessionId: chatId, tags: context.tags }, () => {
@@ -90,6 +110,11 @@ export async function POST(req: Request) {
             abortSignal: req.signal,
             timeout: { totalMs: RESPONSE_LIMITS.maxResponseMs },
             telemetry: { functionId: "chat-turn" },
+            onStepEnd: ({ content }) => {
+              for (const part of content) {
+                if (part.type === "tool-result" || part.type === "tool-error") toolParts.push(part);
+              }
+            },
             onEnd: ({ text, finishReason, steps }) =>
               end(text, {
                 metadata: { finishReason, steps: steps.length },
@@ -97,7 +122,8 @@ export async function POST(req: Request) {
               }),
             // The AI SDK's spans don't record a failed model call, so this is the only place the error shows up.
             onError: ({ error }) => end(undefined, { level: "ERROR", statusMessage: String(error) }),
-            onAbort: () => end(undefined, { level: "WARNING", statusMessage: "Stopped before the reply finished." }),
+            onAbort: () =>
+              end(undefined, { level: "WARNING", statusMessage: "Stopped before the reply finished.", aborted: true }),
           });
 
           return createUIMessageStreamResponse({

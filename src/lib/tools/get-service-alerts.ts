@@ -8,6 +8,10 @@ const MAX_WINDOWS = 3;
 const MAX_DAYS = 14;
 const DAY_MS = 24 * 60 * 60_000;
 
+// Exported so tool-signals can tell a bad request from an outage.
+export const DATE_RANGE_ERROR = `Pick dates from today onwards, at most ${MAX_DAYS} days apart.`;
+export const SERVICE_ALERTS_UNAVAILABLE = "Service alerts are unavailable right now.";
+
 const sydneyDateTime = new Intl.DateTimeFormat("en-AU", {
   timeZone: "Australia/Sydney",
   weekday: "short",
@@ -80,7 +84,7 @@ export const getServiceAlerts = tool({
     const start = new Date(Math.max(now.getTime(), startOfSydneyDay(firstDay).getTime()));
     const end = startOfSydneyDay(addDays(lastDay, 1));
     if (end <= start || end.getTime() - start.getTime() > (MAX_DAYS + 1) * DAY_MS) {
-      return { total: 0, alerts: [], error: `Pick dates from today onwards, at most ${MAX_DAYS} days apart.` };
+      return { total: 0, alerts: [], error: DATE_RANGE_ERROR };
     }
     const from = start.toISOString();
     const to = end.toISOString();
@@ -106,7 +110,7 @@ export const getServiceAlerts = tool({
       };
     } catch (error) {
       console.error("getServiceAlerts failed", error);
-      return { total: 0, alerts: [], error: "Service alerts are unavailable right now." };
+      return { total: 0, alerts: [], error: SERVICE_ALERTS_UNAVAILABLE };
     }
   },
 });
