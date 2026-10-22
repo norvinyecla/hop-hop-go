@@ -3,6 +3,8 @@ import { createUIMessageStreamResponse, isStepCount, streamText, toUIMessageStre
 import { after } from "next/server";
 import { RESPONSE_LIMITS } from "@/lib/chat-limits";
 import { ChatRequestError, parseChatRequest } from "@/lib/chat-request";
+import { feedbackConfig } from "@/lib/feedback";
+import { signFeedbackToken } from "@/lib/feedback-token";
 import { instructions } from "@/lib/instructions";
 import { getModel } from "@/lib/llm";
 import {
@@ -41,6 +43,7 @@ export async function POST(req: Request) {
   }
 
   const { chatId, messages } = chat;
+  const feedback = feedbackConfig();
 
   // One trace per turn, grouped into a session per conversation. The root observation stays
   // open until the reply has finished streaming, so it can record the reply as the trace output.
@@ -89,8 +92,14 @@ export async function POST(req: Request) {
           return createUIMessageStreamResponse({
             stream: toUIMessageStream<typeof tools, ChatMessage>({
               stream: result.stream,
-              // The last finish part carries the final step's reason, so the UI can say when a reply hit the cap.
-              messageMetadata: ({ part }) => (part.type === "finish" ? { finishReason: part.finishReason } : undefined),
+              messageMetadata: ({ part }) => {
+                // Sent before any output, so stopped and failed replies can be rated too.
+                if (part.type === "start" && feedback) {
+                  return { traceId: turn.traceId, feedbackToken: signFeedbackToken(feedback.key, turn.traceId) };
+                }
+                // The last finish part carries the final step's reason, so the UI can say when a reply hit the cap.
+                if (part.type === "finish") return { finishReason: part.finishReason };
+              },
             }),
             headers,
           });

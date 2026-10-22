@@ -2,7 +2,9 @@
 
 import { useChat } from "@ai-sdk/react";
 import { APICallError, DefaultChatTransport } from "ai";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { ReplyRating } from "@/components/reply-rating";
 import { RouteOptions } from "@/components/route-options";
 import { isToolPart, Thinking, ToolStatus } from "@/components/tool-status";
 import { CHAT_LIMITS, recentMessages } from "@/lib/chat-limits";
@@ -36,9 +38,15 @@ export function Chat() {
 
   return (
     <div className="mx-auto flex h-dvh w-full max-w-2xl flex-col">
-      <header className="border-b border-black/10 px-4 py-3 dark:border-white/10">
-        <h1 className="text-lg font-semibold">hop-hop-go</h1>
-        <p className="text-sm opacity-60">Sydney public transport, by chat</p>
+      <header className="flex items-start justify-between gap-4 border-b border-black/10 px-4 py-3 dark:border-white/10">
+        <div>
+          <h1 className="text-lg font-semibold">hop-hop-go</h1>
+          <p className="text-sm opacity-60">Sydney public transport, by chat</p>
+        </div>
+        {/* A new tab, since the chat isn't saved and would be lost on navigating away. */}
+        <Link href="/privacy" target="_blank" rel="noopener" className="py-1 text-sm underline opacity-60">
+          Privacy
+        </Link>
       </header>
 
       <main className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
@@ -129,6 +137,7 @@ function AssistantMessage({ message, active }: { message: ChatMessage; active: b
       ? [{ id: part.toolCallId, journeys: part.output.journeys, when: part.output.when, avoid: part.output.avoid }]
       : [],
   );
+  const { traceId, feedbackToken } = message.metadata ?? {};
 
   return (
     <div className="space-y-2">
@@ -150,6 +159,15 @@ function AssistantMessage({ message, active }: { message: ChatMessage; active: b
       )}
       {message.metadata?.finishReason === "length" && (
         <p className="text-sm opacity-60">This reply was cut short.</p>
+      )}
+      {/* Only once the reply has finished, and only when the server sent a way to rate it. */}
+      {!active && traceId && feedbackToken && (text || trips.length > 0) && (
+        <ReplyRating
+          traceId={traceId}
+          token={feedbackToken}
+          hadTrips={trips.length > 0}
+          finishReason={message.metadata?.finishReason}
+        />
       )}
     </div>
   );

@@ -76,11 +76,15 @@ function parseLimit(value: string | undefined, fallback: number): number {
   return Number.isInteger(n) && n >= 0 ? n : fallback;
 }
 
-/** Reads RATE_LIMIT_PER_MINUTE and RATE_LIMIT_PER_DAY. 0 turns a limit off. */
-export function windowsFromEnv(env: Record<string, string | undefined>): RateLimitWindow[] {
+/** Reads <prefix>_PER_MINUTE and <prefix>_PER_DAY, e.g. RATE_LIMIT_PER_MINUTE. 0 turns a limit off. */
+export function windowsFromEnv(
+  env: Record<string, string | undefined>,
+  prefix = "RATE_LIMIT",
+  defaults = { perMinute: 10, perDay: 100 },
+): RateLimitWindow[] {
   return [
-    { max: parseLimit(env.RATE_LIMIT_PER_MINUTE, 10), ms: 60_000 },
-    { max: parseLimit(env.RATE_LIMIT_PER_DAY, 100), ms: 86_400_000 },
+    { max: parseLimit(env[`${prefix}_PER_MINUTE`], defaults.perMinute), ms: 60_000 },
+    { max: parseLimit(env[`${prefix}_PER_DAY`], defaults.perDay), ms: 86_400_000 },
   ].filter((w) => w.max > 0);
 }
 
@@ -106,8 +110,8 @@ export function rateLimitHeaders(result: RateLimitResult, now = Date.now()): Rec
   return headers;
 }
 
-/** User-facing message for a blocked request. */
-export function rateLimitMessage(retryAfterSec: number): string {
+/** User-facing message for a blocked request. `doing` names what the user was doing too quickly. */
+export function rateLimitMessage(retryAfterSec: number, doing = "sending messages"): string {
   let wait: string;
   if (retryAfterSec < 60) {
     const s = Math.max(1, retryAfterSec);
@@ -119,7 +123,12 @@ export function rateLimitMessage(retryAfterSec: number): string {
     const h = Math.ceil(retryAfterSec / 3600);
     wait = `${h} hour${h === 1 ? "" : "s"}`;
   }
-  return `You're sending messages too quickly. Please try again in about ${wait}.`;
+  return `You're ${doing} too quickly. Please try again in about ${wait}.`;
 }
 
 export const chatRateLimiter: RateLimiter = createMemoryRateLimiter(windowsFromEnv(process.env));
+
+/** Ratings have their own budget, so rating a reply never uses up a chat message. */
+export const feedbackRateLimiter: RateLimiter = createMemoryRateLimiter(
+  windowsFromEnv(process.env, "FEEDBACK_RATE_LIMIT", { perMinute: 30, perDay: 300 }),
+);
