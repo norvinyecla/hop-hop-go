@@ -19,7 +19,17 @@ export const RESPONSE_LIMITS = {
   maxOutputTokens: 1_100,
   /** The whole response, as a backstop for when a client disconnect goes unnoticed. */
   maxResponseMs: 60_000,
+  /** Model steps in one reply. Each tool call round takes one, and so does the final answer. */
+  maxSteps: 5,
 };
+
+/** Why a finished reply should be flagged on its trace, if it should. */
+export function replyWarning(finishReason: string, steps: number): string | undefined {
+  if (finishReason === "length") return "Hit the output token cap.";
+  // Every tool has an execute function, so a reply only ends on tool calls when stopWhen cuts it off.
+  if (finishReason === "tool-calls" && steps >= RESPONSE_LIMITS.maxSteps) return "Hit the step limit.";
+  return undefined;
+}
 
 /**
  * The most recent messages that fit within maxMessages, starting at a user message so a

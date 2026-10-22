@@ -160,6 +160,10 @@ function AssistantMessage({ message, active }: { message: ChatMessage; active: b
       {message.metadata?.finishReason === "length" && (
         <p className="text-sm opacity-60">This reply was cut short.</p>
       )}
+      {/* The server's step limit stopped the reply while the model was still calling tools. */}
+      {message.metadata?.finishReason === "tool-calls" && (
+        <p className="text-sm opacity-60">This reply stopped before it finished. Try asking again.</p>
+      )}
       {/* Only once the reply has finished, and only when the server sent a way to rate it. */}
       {!active && traceId && feedbackToken && (text || trips.length > 0) && (
         <ReplyRating

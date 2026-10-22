@@ -1,7 +1,7 @@
 import { propagateAttributes, startActiveObservation } from "@langfuse/tracing";
 import { createUIMessageStreamResponse, isStepCount, streamText, toUIMessageStream, type ModelMessage } from "ai";
 import { after } from "next/server";
-import { RESPONSE_LIMITS } from "@/lib/chat-limits";
+import { replyWarning, RESPONSE_LIMITS } from "@/lib/chat-limits";
 import { ChatRequestError, parseChatRequest } from "@/lib/chat-request";
 import { feedbackConfig } from "@/lib/feedback";
 import { signFeedbackToken, verifyFeedbackToken } from "@/lib/feedback-token";
@@ -104,7 +104,7 @@ export async function POST(req: Request) {
             instructions: instructions(),
             messages,
             tools,
-            stopWhen: isStepCount(5),
+            stopWhen: isStepCount(RESPONSE_LIMITS.maxSteps),
             maxOutputTokens: RESPONSE_LIMITS.maxOutputTokens,
             // Stops the model and any running tools when the client disconnects.
             abortSignal: req.signal,
@@ -115,11 +115,13 @@ export async function POST(req: Request) {
                 if (part.type === "tool-result" || part.type === "tool-error") toolParts.push(part);
               }
             },
-            onEnd: ({ text, finishReason, steps }) =>
+            onEnd: ({ text, finishReason, steps }) => {
+              const warning = replyWarning(finishReason, steps.length);
               end(text, {
                 metadata: { finishReason, steps: steps.length },
-                ...(finishReason === "length" && { level: "WARNING", statusMessage: "Hit the output token cap." }),
-              }),
+                ...(warning && { level: "WARNING", statusMessage: warning }),
+              });
+            },
             // The AI SDK's spans don't record a failed model call, so this is the only place the error shows up.
             onError: ({ error }) => end(undefined, { level: "ERROR", statusMessage: String(error) }),
             onAbort: () =>
