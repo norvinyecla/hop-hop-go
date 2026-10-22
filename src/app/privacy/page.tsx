@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   description: "What hop-hop-go does with your messages and ratings",
 };
 
-// TODO: replace the bracketed placeholders (retention, contact) before relying on this page.
+// TODO: replace the bracketed contact placeholder before relying on this page.
 export default function Privacy() {
   return (
     <main className="mx-auto w-full max-w-2xl space-y-4 px-4 py-8 text-base leading-relaxed">
@@ -41,7 +41,10 @@ export default function Privacy() {
       </p>
 
       <h2 className="font-semibold">How long data is kept</h2>
-      <p>Recorded conversations, ratings and comments are kept for [retention period to be confirmed].</p>
+      <p>
+        Recorded conversations, ratings and comments are stored with Langfuse (Japan region) and aren&rsquo;t deleted
+        automatically. We delete them on request.
+      </p>
 
       <h2 className="font-semibold">Contact</h2>
       <p>Questions or deletion requests: [contact to be confirmed].</p>

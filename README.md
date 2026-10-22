@@ -28,4 +28,4 @@ node --env-file=.env.local scripts/create-score-configs.mjs
 
 Run it once per Langfuse project. Without the config IDs, the rating controls don't appear. `/api/feedback` is rate limited per IP like `/api/chat`, with its own `FEEDBACK_RATE_LIMIT_*` limits.
 
-The [privacy note](src/app/privacy/page.tsx) still has placeholders for the retention period and a contact.
+The [privacy note](src/app/privacy/page.tsx) still has a placeholder for the contact.
