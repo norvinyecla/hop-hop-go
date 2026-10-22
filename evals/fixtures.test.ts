@@ -1,5 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { FixtureMissError, fixtureKey, record, replay } from "./fixtures";
+import { FixtureMissError, fixtureKey, record, replay, simulate } from "./fixtures";
+
+describe("simulate", () => {
+  it("answers simulated endpoints and passes the rest on", async () => {
+    const next = vi.fn(async () => ({ locations: [{ id: "1" }] }));
+    const tfnswGet = simulate({ trip: "empty", add_info: "error" }, next);
+    await expect(tfnswGet("trip", {})).resolves.toEqual({ journeys: [] });
+    await expect(tfnswGet("add_info", {})).rejects.toThrow("outage");
+    await expect(tfnswGet("stop_finder", {})).resolves.toEqual({ locations: [{ id: "1" }] });
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("fixtureKey", () => {
   it("ignores parameter order", () => {

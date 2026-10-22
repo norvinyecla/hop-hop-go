@@ -18,7 +18,7 @@ import type * as TfnswClient from "@/lib/tfnsw/client";
 import { flushTraces, langfuseConfigured, registerTracing } from "@/lib/tracing";
 import { CASES, type EvalCase } from "./cases";
 import { runChecks, type CaseOutput, type CheckResult, type ToolCallRecord } from "./checks";
-import { loadFixtures, record, replay, saveFixtures } from "./fixtures";
+import { loadFixtures, record, replay, saveFixtures, simulate } from "./fixtures";
 
 const DATASET = "chat-evals";
 const RECORD = process.env.EVAL_RECORD === "1";
@@ -71,6 +71,7 @@ async function runCase(evalCase: EvalCase): Promise<CaseOutput> {
     // Date, so the case's trace shows the recording time, but durations are still right.
     vi.useFakeTimers({ toFake: ["Date"], now: new Date(fixtures.recordedAt) });
   }
+  tfnsw.get = simulate(evalCase.tfnsw, tfnsw.get!);
 
   try {
     const now = new Date();
@@ -138,7 +139,7 @@ async function syncDataset(): Promise<void> {
       id: itemId(evalCase.id),
       input: { messages: evalCase.messages },
       expectedOutput: evalCase.expect,
-      metadata: { caseId: evalCase.id, description: evalCase.description },
+      metadata: { caseId: evalCase.id, description: evalCase.description, tfnsw: evalCase.tfnsw },
       status: "ACTIVE",
     });
   }

@@ -45,6 +45,27 @@ export function replay(fixtures: CaseFixtures): { tfnswGet: TfnswGet; misses: st
   return { tfnswGet, misses };
 }
 
+export type TfnswEndpoint = "stop_finder" | "trip" | "add_info";
+
+/** Stands in for a TfNSW endpoint: "empty" finds nothing, "error" fails like an outage. */
+export type Simulation = Partial<Record<TfnswEndpoint, "empty" | "error">>;
+
+const EMPTY: Record<TfnswEndpoint, unknown> = {
+  stop_finder: { locations: [] },
+  trip: { journeys: [] },
+  add_info: { infos: { current: [] } },
+};
+
+/** Answers simulated endpoints itself and passes the rest on. Simulated requests are never recorded. */
+export function simulate(simulation: Simulation | undefined, next: TfnswGet): TfnswGet {
+  return async (endpoint, params, signal) => {
+    const mode = simulation?.[endpoint as TfnswEndpoint];
+    if (mode === "error") throw new Error(`Simulated TfNSW ${endpoint} outage`);
+    if (mode === "empty") return structuredClone(EMPTY[endpoint as TfnswEndpoint]);
+    return next(endpoint, params, signal);
+  };
+}
+
 /** Passes requests through to TfNSW and keeps each response. */
 export function record(live: TfnswGet): { tfnswGet: TfnswGet; fixtures: CaseFixtures } {
   const fixtures: CaseFixtures = { recordedAt: new Date().toISOString(), responses: {} };

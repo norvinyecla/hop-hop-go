@@ -1,5 +1,6 @@
 import type { AvoidableMode } from "@/lib/avoid";
 import type { Preference } from "@/lib/rank";
+import type { Simulation } from "./fixtures";
 
 export type Weekday = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 
@@ -26,6 +27,10 @@ export type Expectations = {
   asksFollowUp?: boolean;
   /** No tool is called at all. */
   noTools?: boolean;
+  /** No planTrip call returns a journey, e.g. because the time has passed or TfNSW is down. */
+  noRoute?: boolean;
+  /** The reply gives no times or line numbers, as it has nothing to take them from. */
+  noRouteDetails?: boolean;
 };
 
 export type EvalCase = {
@@ -35,6 +40,8 @@ export type EvalCase = {
   description: string;
   /** The chat so far, ending with the user's message. Earlier turns are plain text, as the model sees them. */
   messages: { role: "user" | "assistant"; content: string }[];
+  /** TfNSW endpoints that find nothing or fail in this case, instead of answering from fixtures. */
+  tfnsw?: Simulation;
   expect: Expectations;
 };
 
@@ -174,5 +181,35 @@ export const CASES: EvalCase[] = [
       { role: "user", content: "Actually buses are fine now. Randwick to Bondi Junction?" },
     ],
     expect: { resolves: ["randwick", "bondi junction"], planTrip: { avoid: null } },
+  },
+  {
+    id: "past-time",
+    description: "A time earlier today that has passed isn't planned, for today or quietly for tomorrow. Record after 6:15am.",
+    messages: user("I want to leave Central at 6am today to get to Bondi Junction"),
+    expect: { noRoute: true },
+  },
+  {
+    id: "no-journeys-with-avoid",
+    description: "When nothing is found with a mode left out, it offers to search with every mode instead of searching again itself.",
+    messages: user("Redfern to Randwick, no buses"),
+    tfnsw: { trip: "empty" },
+    expect: { resolves: ["redfern", "randwick"], planTrip: { avoid: ["bus"] }, asksFollowUp: true },
+  },
+  {
+    id: "trip-planner-down",
+    description: "When trip planning fails, it says so and doesn't make up a route.",
+    messages: user("How do I get from Central to Bondi Junction?"),
+    tfnsw: { trip: "error" },
+    expect: { resolves: ["central", "bondi junction"], noRoute: true, noRouteDetails: true },
+  },
+  {
+    id: "follow-up-answered",
+    description: "Once the user answers a follow-up question, it plans the trip.",
+    messages: [
+      { role: "user", content: "How do I get from Central to the beach?" },
+      { role: "assistant", content: "Which beach do you have in mind? For example Bondi, Coogee or Bronte?" },
+      { role: "user", content: "Bondi" },
+    ],
+    expect: { resolves: ["central", "bondi"], planTrip: { avoid: null, when: null } },
   },
 ];

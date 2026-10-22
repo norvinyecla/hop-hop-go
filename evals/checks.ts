@@ -30,7 +30,10 @@ type PlanTripInput = {
 type AlertsInput = { lines?: string[]; fromDate?: string; toDate?: string };
 type ResolveOutput = { candidates?: { id: string }[] };
 
-const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+/** Things only a planned journey could tell it: line codes like T4 or L2, bus routes and clock times. */
+const ROUTE_DETAIL = /\b[TML]\d\b|\b(?:bus|route)\s+\d{2,3}[A-Z]?\b|\b\d{2,3}[A-Z]?\s+bus\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*[ap]\.?m\b/gi;
+
+const WEEKDAYS =["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 /** The Sydney date (YYYY-MM-DD) a relative day means at `now`. */
 export function resolveDay(day: RelativeDay, now: Date): string {
@@ -136,6 +139,16 @@ export function runChecks(expect: Expectations, output: CaseOutput): CheckResult
 
   if (expect.noTools) {
     results.push(check("no_tools", output.calls.length === 0, `called ${output.calls.map((call) => call.tool).join(", ")}`));
+  }
+
+  if (expect.noRoute) {
+    const found = plans.filter((call) => ((call.output as { journeys?: unknown[] } | undefined)?.journeys?.length ?? 0) > 0);
+    results.push(check("no_route", found.length === 0, `planTrip returned journeys for ${show(found.map((c) => c.input))}`));
+  }
+
+  if (expect.noRouteDetails) {
+    const details = output.reply.match(ROUTE_DETAIL) ?? [];
+    results.push(check("no_route_details", details.length === 0, `reply mentions ${show(details)}`));
   }
 
   return results;

@@ -48,7 +48,7 @@ EVAL_CASES=no-buses,fastest npm run eval     # some cases
 EVAL_RECORD=1 EVAL_CASES=no-buses npm run eval   # call TfNSW live and re-record those fixtures
 ```
 
-Record a case after adding or changing it. A `fixtures_complete` failure means the model asked TfNSW for something that wasn't recorded, such as a different place name; re-record the case if the new request is reasonable.
+A case can set `tfnsw: { trip: "empty" }` or `"error"` (likewise `stop_finder` and `add_info`) to test what the model does when TfNSW finds nothing or is down; those requests aren't recorded. Record a case after adding or changing it. A `fixtures_complete` failure means the model asked TfNSW for something that wasn't recorded, such as a different place name; re-record the case if the new request is reasonable.
 
 With the `LANGFUSE_*` keys set, the cases are synced to the `chat-evals` dataset and each run is an experiment on it. Every case gets a `check_<name>` boolean score per check and a `checks_passed` score, and the run gets a `pass_rate`, so runs with different models or prompts can be compared. Edit cases in `cases.ts`, not in Langfuse: each run overwrites the dataset and archives items whose case is gone.
 

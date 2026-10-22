@@ -92,6 +92,26 @@ describe("runChecks", () => {
     expect(failed(runChecks({ alerts: { from: "saturday" } }, output({ calls: [call] })))).toEqual([]);
   });
 
+  it("fails a route when there shouldn't be one", () => {
+    const withJourney = { ...plan({}), output: { journeys: [{}] } };
+    expect(failed(runChecks({ noRoute: true }, output({ calls: [resolve("x", ["a", "b"]), plan({})] })))).toEqual([]);
+    expect(failed(runChecks({ noRoute: true }, output({ calls: [resolve("x", ["a", "b"]), withJourney] })))).toEqual([
+      "no_route",
+    ]);
+  });
+
+  it.each([
+    ["Take the T4 to Bondi Junction.", false],
+    ["Catch the 333 bus.", false],
+    ["Bus 440 leaves soon.", false],
+    ["It leaves at 5:07.", false],
+    ["You'd arrive around 9am.", false],
+    ["Trip planning is unavailable right now. Try again in a few minutes.", true],
+    ["Central to Randwick is about 4 km.", true],
+  ])("no_route_details on %j passes: %s", (reply, passes) => {
+    expect(failed(runChecks({ noRouteDetails: true }, output({ reply })))).toEqual(passes ? [] : ["no_route_details"]);
+  });
+
   it("checks follow-ups and calls that shouldn't happen", () => {
     const results = runChecks(
       { planTrip: false, alerts: false, asksFollowUp: true, noTools: true },
