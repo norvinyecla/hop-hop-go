@@ -25,6 +25,8 @@ export type ChatRequest = {
   /** The client's conversation ID, or undefined if missing or malformed. Not trusted: use it only to group traces. */
   chatId?: string;
   messages: ModelMessage[];
+  /** The trace ID and feedback token /api/chat sent with the reply before the latest user message. Not trusted: check the token. */
+  previousReply?: { traceId: string; feedbackToken: string };
 };
 
 const CHAT_ID = /^[\w-]{1,100}$/;
@@ -65,7 +67,16 @@ export async function parseChatRequest(
     throw new ChatRequestError(TOO_LONG, 413);
   }
   const chatId = typeof body?.id === "string" && CHAT_ID.test(body.id) ? body.id : undefined;
-  return { chatId, messages: modelMessages };
+  return { chatId, messages: modelMessages, previousReply: previousReply(messages) };
+}
+
+/** Message metadata isn't validated against a schema, so check its types here. */
+function previousReply(messages: ChatMessage[]): ChatRequest["previousReply"] {
+  const reply = messages.at(-2);
+  if (reply?.role !== "assistant") return undefined;
+  const { traceId, feedbackToken } = reply.metadata ?? {};
+  if (typeof traceId !== "string" || typeof feedbackToken !== "string") return undefined;
+  return { traceId, feedbackToken };
 }
 
 /** readJson, with the errors this route shows the user. */

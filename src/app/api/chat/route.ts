@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { RESPONSE_LIMITS } from "@/lib/chat-limits";
 import { ChatRequestError, parseChatRequest } from "@/lib/chat-request";
 import { feedbackConfig } from "@/lib/feedback";
-import { signFeedbackToken } from "@/lib/feedback-token";
+import { signFeedbackToken, verifyFeedbackToken } from "@/lib/feedback-token";
 import { instructions } from "@/lib/instructions";
 import { getModel } from "@/lib/llm";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/lib/rate-limit";
 import { tools, type ChatMessage } from "@/lib/tools";
 import { flushTraces } from "@/lib/tracing";
+import { messageText, turnContext } from "@/lib/turn-context";
 
 // Seconds. Above RESPONSE_LIMITS.maxResponseMs so onAbort and the trace flush in after() still run
 // when a reply times out. Must be a literal, so keep it in step with that limit by hand.
@@ -42,16 +43,26 @@ export async function POST(req: Request) {
     });
   }
 
-  const { chatId, messages } = chat;
+  const { chatId, messages, previousReply } = chat;
   const feedback = feedbackConfig();
+  // The token proves this server sent the previous reply's trace ID, so the link can't point at another chat's trace.
+  const previousTraceId =
+    feedback && previousReply && verifyFeedbackToken(feedback.key, previousReply.traceId, previousReply.feedbackToken).ok
+      ? previousReply.traceId
+      : undefined;
+  const context = turnContext(messages, previousTraceId);
 
   // One trace per turn, grouped into a session per conversation. The root observation stays
   // open until the reply has finished streaming, so it can record the reply as the trace output.
-  // It's a plain span: the AI SDK's own invoke_agent span under it is the agent.
+  // It's a plain span: the AI SDK's own invoke_agent span under it is the agent. Its metadata
+  // carries the reply the user is reacting to, so a correction can be read from this trace alone.
   return startActiveObservation(
     "chat-turn",
     (turn) => {
-      turn.update({ input: lastUserText(messages) });
+      turn.update({
+        input: lastUserText(messages),
+        metadata: { turn: context.turn, previousTurn: context.previousTurn },
+      });
       let ended = false;
       const end = (
         output: unknown,
@@ -67,7 +78,7 @@ export async function POST(req: Request) {
       after(flushTraces);
 
       try {
-        return propagateAttributes({ traceName: "chat-turn", sessionId: chatId }, () => {
+        return propagateAttributes({ traceName: "chat-turn", sessionId: chatId, tags: context.tags }, () => {
           const result = streamText({
             model: getModel(),
             instructions: instructions(),
@@ -117,7 +128,5 @@ export async function POST(req: Request) {
 /** The user's latest message, as the trace input, rather than the whole history. */
 function lastUserText(messages: ModelMessage[]): string | undefined {
   const last = messages.at(-1);
-  if (last?.role !== "user") return undefined;
-  if (typeof last.content === "string") return last.content;
-  return last.content.map((part) => (part.type === "text" ? part.text : "")).join("");
+  return last?.role === "user" ? messageText(last) : undefined;
 }
