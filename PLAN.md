@@ -53,7 +53,7 @@ The weights can change based on what the user says in the conversation, e.g. "fe
 ## Tech stack
 - **Next.js (App Router), TypeScript**
 - **Vercel AI SDK**: `streamText` + tools + `stopWhen: isStepCount(n)` on the server, `useChat` on the client. Tool results render as route cards.
-- **Model**: provider and model are set by environment variables (see below). Default: Google Gemini 3.1 Flash Lite (preview) (`gemini-3.1-flash-lite-preview`) via `@ai-sdk/google`. Anthropic (`@ai-sdk/anthropic`) is also supported.
+- **Model**: provider and model are set by environment variables (see below). Default: Google Gemini 3 Flash (preview) (`gemini-3-flash-preview`) via `@ai-sdk/google`. Anthropic (`@ai-sdk/anthropic`) is also supported.
 - **Zod** for tool input schemas and parsing TfNSW responses
 - **Tailwind CSS**, mobile-first layout
 - **MapLibre GL** (phase 2)
@@ -63,7 +63,7 @@ The weights can change based on what the user says in the conversation, e.g. "fe
 ```
 TFNSW_API_KEY=
 LLM_PROVIDER=google             # google | anthropic
-LLM_MODEL=gemini-3.1-flash-lite-preview
+LLM_MODEL=gemini-3-flash-preview
 LLM_API_KEY=
 RATE_LIMIT_PER_MINUTE=10        # per client IP, 0 = off
 RATE_LIMIT_PER_DAY=100          # per client IP, 0 = off

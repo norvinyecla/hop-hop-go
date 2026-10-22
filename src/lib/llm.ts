@@ -8,7 +8,7 @@ import type { LanguageModel } from "ai";
  */
 export function getModel(): LanguageModel {
   const provider = process.env.LLM_PROVIDER ?? "google";
-  const model = process.env.LLM_MODEL ?? "gemini-3.1-flash-lite-preview";
+  const model = process.env.LLM_MODEL ?? "gemini-3-flash-preview";
   const apiKey = process.env.LLM_API_KEY;
 
   if (!apiKey) {
