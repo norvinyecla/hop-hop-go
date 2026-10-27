@@ -1,8 +1,39 @@
 # hop-hop-go
 
-An AI chat app for planning public transport trips around Sydney. See [PLAN.md](PLAN.md).
+An AI chat app for planning public transport trips around Sydney. You ask how to get somewhere in plain words, and it finds real journeys from Transport for NSW, recommends one and explains why.
+
+## What it does
+
+- **Plans trips** by train (including Sydney Metro), light rail and bus, with walking between them. Ferries, coaches, driving, cycling and rideshare aren't covered, and neither are trips that start or end outside Sydney.
+- **Shows the options** as swipeable cards with departure and arrival times, lines, platforms, changes and walking, plus a map of the selected route.
+- **Understands when you want to travel**: leave now (the default), "leave tomorrow at 6:30am" or "arrive by 9pm". It asks for a time when you're vague ("tomorrow morning") and says so when a time has already passed.
+- **Follows your preferences**: "fastest", "fewest changes" or "least walking" change how journeys are ranked, and "no buses" or "trains only" leave modes out for the rest of the chat.
+- **Tells you about disruptions**: alerts on the recommended journey, such as trackwork or a lift outage, and questions like "is there trackwork on the T1 this weekend?" for trains, metro and light rail.
+- **Asks when a place is ambiguous** instead of guessing.
+
+Example questions:
+
+> Central to Bondi Junction, no buses
+>
+> How do I get to the airport from Parramatta for a 10am flight tomorrow?
+>
+> Any trackwork on the T4 this weekend?
+
+The app has no accounts and keeps no chat history; reloading starts a new chat. See [the privacy note](src/app/privacy/page.tsx) for what is sent where.
+
+## How it works
+
+The model never makes up a route. In [/api/chat](src/app/api/chat/route.ts) it calls tools that query the [TfNSW Open Data](https://opendata.transport.nsw.gov.au) trip planner API, then explains the result:
+
+- `resolveLocation` turns a place name into TfNSW stops or locations (`stop_finder`).
+- `planTrip` finds journeys between them (`trip`), with real-time delays. Ranking is done in code, not by the model ([src/lib/rank.ts](src/lib/rank.ts)): a score in minutes made of journey time and the wait before it, plus penalties for changes, walking and delays, weighted by the preference.
+- `getServiceAlerts` looks up trackwork and service changes for given lines and dates (`add_info`).
+
+Built with Next.js (App Router), the Vercel AI SDK, Tailwind CSS and MapLibre GL. The model is set by environment variables: Google Gemini 3 Flash by default, or Anthropic ([src/lib/llm.ts](src/lib/llm.ts)). Requests to `/api/chat` are rate limited per IP. [PLAN.md](PLAN.md) has the design and the roadmap.
 
 ## Getting started
+
+You need a [TfNSW Open Data](https://opendata.transport.nsw.gov.au) API key and an API key for the model provider.
 
 ```bash
 npm install
@@ -10,7 +41,7 @@ cp .env.example .env.local   # then fill in the keys
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000. `npm test` runs the unit tests.
 
 ## Tracing
 
